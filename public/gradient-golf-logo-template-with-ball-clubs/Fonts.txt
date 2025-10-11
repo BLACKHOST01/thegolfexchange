@@ -1,0 +1,9 @@
+Fonts used in this design:
+
+Font: Oswald
+Author: Vernon Adams
+Url: http://www.fontsquirrel.com/fonts/oswald
+
+Font: Nautilus Pompilius
+Author: Punk You Brands
+Url: https://www.fontsquirrel.com/fonts/nautilus-pompilius
