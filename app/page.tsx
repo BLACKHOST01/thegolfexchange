@@ -5,20 +5,14 @@ export default function Home() {
   return (
     <>
       {/* Header */}
-      <header>
-        <Navbar />
-      </header>
-
+   
       {/* Main Content */}
       <main className="">
        <Hero/>
        
       </main>
 
-      {/* Footer */}
-      <footer>
-        <Footer />
-      </footer>
+    
     </>
   );
 }
