@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
 export default function AdminSidebar() {
   const [isOpen, setIsOpen] = useState(true);
   const pathname = usePathname();
-  const sidebarRef = useRef(null);
+  const sidebarRef = useRef<HTMLDivElement | null>(null); // ✅ Typed ref
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
@@ -34,10 +34,10 @@ export default function AdminSidebar() {
 
   // 🧠 Close sidebar when clicking outside (for mobile only)
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    const handleClickOutside = (event: MouseEvent) => {  // ✅ Typed event
       if (
         sidebarRef.current &&
-        !sidebarRef.current.contains(event.target) &&
+        !sidebarRef.current.contains(event.target as Node) &&
         window.innerWidth < 768
       ) {
         setIsOpen(false);
