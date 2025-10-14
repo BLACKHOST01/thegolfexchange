@@ -1,5 +1,4 @@
-import Navbar from "./components/NavBar";
-import Footer from "./components/Footer";
+import FAQWrapper from "./components/FAQDATA";
 import Hero from "./components/ui/Hero";
 export default function Home() {
   return (
@@ -9,7 +8,7 @@ export default function Home() {
       {/* Main Content */}
       <main className="">
        <Hero/>
-       
+       <FAQWrapper/>
       </main>
 
     
