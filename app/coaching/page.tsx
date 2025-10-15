@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
-import coachingImg from "@/public/many-golf.webp";
+import coachingImg from "@/public/scene.webp";
 import coach1 from "@/public/man-having.webp"; // ✅ Replace with your actual coach images
 import coach2 from "@/public/man-having.webp";
 import coach3 from "@/public/man-having.webp";
