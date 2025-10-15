@@ -1,50 +1,61 @@
 // "use client";
 
 import React from "react";
-import contact from "@/public/many-golf.webp"; // ✅ replace with your actual image
+import contact from "@/public/many-golf.webp";
 import { HeroSection } from "../components/ui/HeroSection";
 import Divider from "../components/ui/Divider";
 
-const Page = () => {
+const Tournaments = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <HeroSection
-        title="Contact Us"
-        description="We'd love to hear from you! Whether you have questions about our shipping services, need a quote, or want to discuss your logistics needs, our team is here to help. Reach out to us via the contact form below, email, or phone. We're committed to providing exceptional customer service and look forward to assisting you with all your shipping requirements."
+        title="Tournaments"
+        description="Join thrilling golf tournaments, showcase your skills, and connect with passionate golfers from all over. Explore upcoming events, register, or view past tournament highlights—all in one place."
         backgroundImages={[contact]}
-      >
-        <Divider />
-      </HeroSection>
+      />
 
-      {/* Contact Form Section (optional) */}
-      <section className="flex-1 max-w-5xl mx-auto px-6 py-16">
-        <h2 className="text-3xl font-bold mb-6">Get in Touch</h2>
-        <form className="space-y-6">
-          <input
-            type="text"
-            placeholder="Your Name"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="email"
-            placeholder="Your Email"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500"
-          />
-          <textarea
-            placeholder="Your Message"
-            rows={5}
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition"
-          >
-            Send Message
-          </button>
-        </form>
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-6xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-8">Upcoming Tournaments</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white shadow-md rounded-2xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                <img
+                  src="/tournament-placeholder.jpg"
+                  alt={`Tournament ${i}`}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold mb-2">Golf Masters {2025 + i}</h3>
+                  <p className="text-gray-600 mb-4">
+                    Join us for the {2025 + i} season’s biggest event at The Golf Exchange.
+                  </p>
+                  <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                    Register Now
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <section className="py-20 bg-green-700 text-white text-center">
+        <h2 className="text-3xl font-bold mb-4">Want to Host a Tournament?</h2>
+        <p className="max-w-2xl mx-auto mb-6">
+          Partner with The Golf Exchange to host your own event. We'll handle registration, promotions, and logistics—so you can focus on the game.
+        </p>
+        <a
+          href="/contact"
+          className="bg-white text-green-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200"
+        >
+          Get Started
+        </a>
       </section>
     </div>
   );
 };
 
-export default Page;
+export default Tournaments;
