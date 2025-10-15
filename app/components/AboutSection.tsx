@@ -1,21 +1,38 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import dbs from "@/public/details-ball-sport.webp";
 import team1 from "@/public/scene.webp";
 import team2 from "@/public/scene.webp";
 import team3 from "@/public/scene.webp";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 40 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
+// ✅ Type-safe animation variant
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 50 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: [0.25, 0.1, 0.25, 1], // ✅ Type-safe easing curve
+    },
+  },
+};
+
+// ✅ Staggered parent container for team members
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.2,
+    },
+  },
 };
 
 export default function AboutSection() {
-    
   return (
-    
     <section className="py-20 px-6 md:px-12 bg-gray-50 text-gray-800">
       <div className="max-w-6xl mx-auto space-y-20">
         {/* --- About Us --- */}
@@ -99,65 +116,36 @@ export default function AboutSection() {
             The Faces Behind The Golf Exchange
           </h2>
 
+          {/* ✅ Stagger animation for each team card */}
           <motion.div
             className="grid sm:grid-cols-2 md:grid-cols-3 gap-8"
+            variants={staggerContainer}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true }}
-            variants={{
-              hidden: { opacity: 0 },
-              show: {
-                opacity: 1,
-                transition: {
-                  staggerChildren: 0.2,
-                },
-              },
-            }}
           >
-            {/* Team Member 1 */}
-            <motion.div
-              variants={fadeUp}
-              className="bg-white rounded-xl shadow-md overflow-hidden text-center p-6 hover:shadow-lg transition"
-            >
-              <Image
-                src={team1}
-                alt="Team member 1"
-                className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
-              />
-              <h4 className="font-semibold text-gray-900">James Walker</h4>
-              <p className="text-sm text-gray-500">Founder & CEO</p>
-            </motion.div>
-
-            {/* Team Member 2 */}
-            <motion.div
-              variants={fadeUp}
-              className="bg-white rounded-xl shadow-md overflow-hidden text-center p-6 hover:shadow-lg transition"
-            >
-              <Image
-                src={team2}
-                alt="Team member 2"
-                className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
-              />
-              <h4 className="font-semibold text-gray-900">Sophia Green</h4>
-              <p className="text-sm text-gray-500">Marketing Director</p>
-            </motion.div>
-
-            {/* Team Member 3 */}
-            <motion.div
-              variants={fadeUp}
-              className="bg-white rounded-xl shadow-md overflow-hidden text-center p-6 hover:shadow-lg transition"
-            >
-              <Image
-                src={team3}
-                alt="Team member 3"
-                className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
-              />
-              <h4 className="font-semibold text-gray-900">Daniel Brooks</h4>
-              <p className="text-sm text-gray-500">Head of Operations</p>
-            </motion.div>
+            {[ 
+              { src: team1, name: "James Walker", role: "Founder & CEO" },
+              { src: team2, name: "Sophia Green", role: "Marketing Director" },
+              { src: team3, name: "Daniel Brooks", role: "Head of Operations" },
+            ].map((member, index) => (
+              <motion.div
+                key={index}
+                variants={fadeUp}
+                className="bg-white rounded-xl shadow-md overflow-hidden text-center p-6 hover:shadow-lg transition"
+              >
+                <Image
+                  src={member.src}
+                  alt={member.name}
+                  className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
+                />
+                <h4 className="font-semibold text-gray-900">{member.name}</h4>
+                <p className="text-sm text-gray-500">{member.role}</p>
+              </motion.div>
+            ))}
           </motion.div>
 
-          {/* Optional CTA */}
+          {/* --- Optional CTA --- */}
           <motion.div variants={fadeUp} className="text-center mt-12">
             <a
               href="/careers"

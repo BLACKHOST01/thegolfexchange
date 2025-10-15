@@ -5,7 +5,7 @@ import contact from "@/public/many-golf.webp"; // ✅ replace with your actual i
 import { HeroSection } from "../components/ui/HeroSection";
 import Divider from "../components/ui/Divider";
 
-const Page = () => {
+const coaching = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <HeroSection
@@ -47,4 +47,4 @@ const Page = () => {
   );
 };
 
-export default Page;
+export default coaching;
