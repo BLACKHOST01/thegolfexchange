@@ -23,16 +23,7 @@ const fadeUp: Variants = {
   },
 };
 
-// // ✅ Staggered parent container for team members
-// const staggerContainer: Variants = {
-//   hidden: { opacity: 0 },
-//   show: {
-//     opacity: 1,
-//     transition: {
-//       staggerChildren: 0.2,
-//     },
-//   },
-// };
+
 
 
 const Coaching = () => {
