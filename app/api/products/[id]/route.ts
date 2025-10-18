@@ -3,32 +3,30 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// ✅ GET /api/products/[id]
+// ✅ Correct signature
 export async function GET(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ productId: string }> }
 ) {
-  const { id } = await context.params;
+  const { productId } = await context.params;
 
   try {
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: { seller: true, reviews: true },
+    const reviews = await prisma.review.findMany({
+      where: { productId },
+      include: { user: true },
+      orderBy: { createdAt: "desc" },
     });
 
-    if (!product) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(product);
+    return NextResponse.json(reviews);
   } catch (error) {
-    console.error("Error fetching product:", error);
+    console.error("Error fetching reviews:", error);
     return NextResponse.json(
-      { error: "Error fetching product" },
+      { error: "Failed to fetch reviews" },
       { status: 500 }
     );
   }
 }
+
 
 // ✅ PUT /api/products/[id]
 export async function PUT(
