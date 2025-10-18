@@ -1,6 +1,7 @@
-// "use client";
+"use client";
 
 import React from "react";
+import Image from "next/image";
 import contact from "@/public/many-golf.webp";
 import { HeroSection } from "../components/ui/HeroSection";
 import Divider from "../components/ui/Divider";
@@ -19,16 +20,26 @@ const Tournaments = () => {
           <h2 className="text-3xl font-bold mb-8">Upcoming Tournaments</h2>
           <div className="grid md:grid-cols-3 gap-8">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white shadow-md rounded-2xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                <img
+              <div
+                key={i}
+                className="bg-white shadow-md rounded-2xl overflow-hidden hover:shadow-lg transition-shadow duration-300"
+              >
+                {/* ✅ replaced <img> with <Image /> */}
+                <Image
                   src="/tournament-placeholder.jpg"
                   alt={`Tournament ${i}`}
+                  width={600}
+                  height={400}
                   className="w-full h-48 object-cover"
                 />
                 <div className="p-6">
-                  <h3 className="text-xl font-semibold mb-2">Golf Masters {2025 + i}</h3>
+                  <h3 className="text-xl font-semibold mb-2">
+                    Golf Masters {2025 + i}
+                  </h3>
+                  {/* ✅ escaped apostrophe with &apos; */}
                   <p className="text-gray-600 mb-4">
-                    Join us for the {2025 + i} season’s biggest event at The Golf Exchange.
+                    Join us for the {2025 + i} season&apos;s biggest event at
+                    The Golf Exchange.
                   </p>
                   <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                     Register Now
@@ -45,7 +56,9 @@ const Tournaments = () => {
       <section className="py-20 bg-green-700 text-white text-center">
         <h2 className="text-3xl font-bold mb-4">Want to Host a Tournament?</h2>
         <p className="max-w-2xl mx-auto mb-6">
-          Partner with The Golf Exchange to host your own event. We'll handle registration, promotions, and logistics—so you can focus on the game.
+          Partner with The Golf Exchange to host your own event. We&apos;ll
+          handle registration, promotions, and logistics—so you can focus on the
+          game.
         </p>
         <a
           href="/contact"
