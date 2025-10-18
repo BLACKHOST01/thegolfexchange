@@ -51,26 +51,47 @@ model User {
   cart             Cart? // ✅ Added opposite relation for Cart
 }
 
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  description   String?
+  subcategories Subcategory[]
+  products      Product[]
+}
+
+model Subcategory {
+  id         String    @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category  @relation(fields: [categoryId], references: [id])
+  products   Product[]
+}
+
 model Product {
-  id          String    @id @default(uuid())
-  title       String
-  description String
-  price       Float
-  category    String
-  condition   Condition
-  images      String[]
-  stock       Int       @default(1)
-  location    String?
-  isUsed      Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String       @id @default(cuid())
+  title         String
+  description   String
+  price         Float
+  categoryId    String?
+  category      Category?    @relation(fields: [categoryId], references: [id])
+  subcategoryId String?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
+  condition     Condition
+  images        String[]
+  stock         Int
+  isUsed        Boolean      @default(false)
+  isFeatured    Boolean      @default(false)
+  rating        Float        @default(0)
+  sellerId      String
+  seller        User         @relation(fields: [sellerId], references: [id])
+  location      String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  seller   User   @relation(fields: [sellerId], references: [id])
-  sellerId String
-
-  reviews    Review[]
-  orderItems OrderItem[]
-  cartItems  CartItem[] // ✅ Added opposite relation for CartItem
+  // 🆕 Opposite relations
+  orderItems OrderItem[] // link to OrderItem.product
+  reviews    Review[] // link to Review.product
+  cartItems  CartItem[] // link to CartItem.product
 }
 
 model Order {
@@ -150,7 +171,7 @@ model Transaction {
   amount      Float
   currency    String   @default("NGN")
   provider    String?
-  providerRef String?
+  providerRef String   @unique
   status      String
   order       Order?   @relation(fields: [orderId], references: [id])
   orderId     String?  @unique // ✅ Added this
