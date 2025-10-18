@@ -3,7 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+// ✅ GET /api/products/[id]
+export async function GET(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   const { id } = await context.params;
 
   try {
@@ -12,17 +16,25 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
       include: { seller: true, reviews: true },
     });
 
-    if (!product)
+    if (!product) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
     return NextResponse.json(product);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error fetching product" }, { status: 500 });
+    console.error("Error fetching product:", error);
+    return NextResponse.json(
+      { error: "Error fetching product" },
+      { status: 500 }
+    );
   }
 }
 
-export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
+// ✅ PUT /api/products/[id]
+export async function PUT(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   const { id } = await context.params;
 
   try {
@@ -33,19 +45,23 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     });
     return NextResponse.json(updated);
   } catch (error) {
-    console.error(error);
+    console.error("Update failed:", error);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+// ✅ DELETE /api/products/[id]
+export async function DELETE(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   const { id } = await context.params;
 
   try {
     await prisma.product.delete({ where: { id } });
     return NextResponse.json({ message: "Deleted successfully" });
   } catch (error) {
-    console.error(error);
+    console.error("Delete failed:", error);
     return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
 }
