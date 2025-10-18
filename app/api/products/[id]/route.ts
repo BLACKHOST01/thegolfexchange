@@ -3,16 +3,16 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// ✅ Correct signature
+// ✅ GET /api/products/[id] — fetch reviews for a product
 export async function GET(
   req: Request,
-  context: { params: Promise<{ productId: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { productId } = await context.params;
+  const { id } = await context.params;
 
   try {
     const reviews = await prisma.review.findMany({
-      where: { productId },
+      where: { productId: id },
       include: { user: true },
       orderBy: { createdAt: "desc" },
     });
@@ -26,7 +26,6 @@ export async function GET(
     );
   }
 }
-
 
 // ✅ PUT /api/products/[id]
 export async function PUT(
