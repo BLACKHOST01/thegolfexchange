@@ -6,13 +6,13 @@ const prisma = new PrismaClient();
 // ✅ GET /api/products/[id] — fetch reviews for a product
 export async function GET(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { productId: string } }
 ) {
-  const { id } = await context.params;
+  const { productId } = params;
 
   try {
     const reviews = await prisma.review.findMany({
-      where: { productId: id },
+      where: { productId },
       include: { user: true },
       orderBy: { createdAt: "desc" },
     });
