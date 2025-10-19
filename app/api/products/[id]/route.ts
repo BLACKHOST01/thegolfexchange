@@ -3,31 +3,43 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// ✅ GET /api/products/[id] — fetch reviews for a product
+/**
+ * GET /api/products/[id]
+ * Fetch a single product and its reviews
+ */
 export async function GET(
   req: Request,
-  { params }: { params: { productId: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { productId } = params;
+  const { id } = await context.params;
 
   try {
-    const reviews = await prisma.review.findMany({
-      where: { productId },
-      include: { user: true },
-      orderBy: { createdAt: "desc" },
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        reviews: {
+          include: { user: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
     });
 
-    return NextResponse.json(reviews);
+    if (!product)
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+
+    return NextResponse.json(product);
   } catch (error) {
-    console.error("Error fetching reviews:", error);
+    console.error("Error fetching product:", error);
     return NextResponse.json(
-      { error: "Failed to fetch reviews" },
+      { error: "Failed to fetch product" },
       { status: 500 }
     );
   }
 }
-
-// ✅ PUT /api/products/[id]
+/**
+ * PUT /api/products/[id]
+ * Update product details
+ */
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -36,10 +48,12 @@ export async function PUT(
 
   try {
     const data = await req.json();
+
     const updated = await prisma.product.update({
       where: { id },
       data,
     });
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error("Update failed:", error);
@@ -47,7 +61,10 @@ export async function PUT(
   }
 }
 
-// ✅ DELETE /api/products/[id]
+/**
+ * DELETE /api/products/[id]
+ * Delete a product
+ */
 export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> }

@@ -1,71 +1,105 @@
-// /app/api/checkout/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient, OrderStatus } from "@prisma/client";
-import { faker } from "@faker-js/faker";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+/**
+ * POST /api/cart
+ * Add a product to the user's cart
+ */
 export async function POST(req: Request) {
   try {
     const userId = req.headers.get("x-user-id");
     if (!userId)
       return NextResponse.json({ error: "Missing user id" }, { status: 401 });
 
-    const body = await req.json().catch(() => ({}));
-    // body can contain paymentProvider info in advanced flows
+    const { productId, quantity } = await req.json();
+
+    if (!productId || !quantity)
+      return NextResponse.json(
+        { error: "Missing productId or quantity" },
+        { status: 400 }
+      );
+
+    // find or create cart for this user
+    let cart = await prisma.cart.findUnique({ where: { userId } });
+    if (!cart) {
+      cart = await prisma.cart.create({ data: { userId } });
+    }
+
+    // check if product already exists in cart
+    const existingItem = await prisma.cartItem.findFirst({
+      where: { cartId: cart.id, productId },
+    });
+
+    if (existingItem) {
+      // update quantity
+      await prisma.cartItem.update({
+        where: { id: existingItem.id },
+        data: { quantity: existingItem.quantity + quantity },
+      });
+    } else {
+      // add new item
+      await prisma.cartItem.create({
+        data: { cartId: cart.id, productId, quantity },
+      });
+    }
+
+    return NextResponse.json({ message: "Added to cart successfully" });
+  } catch (err) {
+    console.error("POST /api/cart error:", err);
+    return NextResponse.json({ error: "Failed to add to cart" }, { status: 500 });
+  }
+}
+
+/**
+ * GET /api/cart
+ * Retrieve all items in the user's cart
+ */
+export async function GET(req: Request) {
+  try {
+    const userId = req.headers.get("x-user-id");
+    if (!userId)
+      return NextResponse.json({ error: "Missing user id" }, { status: 401 });
 
     const cart = await prisma.cart.findUnique({
       where: { userId },
-      include: { items: { include: { product: true } } },
-    });
-
-    if (!cart || cart.items.length === 0)
-      return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
-
-    // compute total
-    const totalAmount = cart.items.reduce(
-      (s, it) => s + it.quantity * it.product.price,
-      0
-    );
-
-    // Create order
-    const order = await prisma.order.create({
-      data: {
-        totalAmount,
-        status: OrderStatus.PENDING,
-        buyerId: userId,
+      include: {
         items: {
-          create: cart.items.map((it) => ({
-            productId: it.productId,
-            quantity: it.quantity,
-            price: it.product.price,
-          })),
+          include: { product: true },
         },
       },
-      include: { items: true },
     });
 
-    // create a placeholder transaction (update after provider callback)
-    const tx = await prisma.transaction.create({
-      data: {
-        amount: order.totalAmount,
-        currency: "NGN",
-        provider: "paystack",
-        providerRef: `TXN-${faker.string.alphanumeric(6).toUpperCase()}`,
-        status: "SUCCESS",
-        orderId: order.id,
-      },
-    });
+    if (!cart)
+      return NextResponse.json({ items: [] });
 
-    // Optionally: if using an offline payment or already confirmed payment:
-    // await prisma.order.update({ where: { id: order.id }, data: { status: OrderStatus.PAID }});
+    return NextResponse.json(cart);
+  } catch (err) {
+    console.error("GET /api/cart error:", err);
+    return NextResponse.json({ error: "Failed to fetch cart" }, { status: 500 });
+  }
+}
 
-    // clear cart
+/**
+ * DELETE /api/cart
+ * Clear all items from the user's cart
+ */
+export async function DELETE(req: Request) {
+  try {
+    const userId = req.headers.get("x-user-id");
+    if (!userId)
+      return NextResponse.json({ error: "Missing user id" }, { status: 401 });
+
+    const cart = await prisma.cart.findUnique({ where: { userId } });
+    if (!cart)
+      return NextResponse.json({ message: "Cart already empty" });
+
     await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-    return NextResponse.json({ order, transaction: tx });
+    return NextResponse.json({ message: "Cart cleared" });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
+    console.error("DELETE /api/cart error:", err);
+    return NextResponse.json({ error: "Failed to clear cart" }, { status: 500 });
   }
 }
