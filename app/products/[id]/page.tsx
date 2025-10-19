@@ -114,7 +114,7 @@ export default function ProductPage() {
             )}
           </div>
 
-          <div className="mt-5 text-2xl font-bold text-black">
+          <div className="mt-5 text-2xl font-bold text-green-600"> 
             ${product.price.toLocaleString()}
           </div>
 
