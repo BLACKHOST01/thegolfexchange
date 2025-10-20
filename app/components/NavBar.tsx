@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import golfball from "@/public/golf-ball.webp";
 import { ShoppingCart } from "lucide-react";
+import { useAuth } from "@/app/context/AuthContext"; // ✅ Add Auth Context
 
 interface CartItem {
   id: string;
@@ -35,6 +36,8 @@ const NavBar = () => {
   const menuItemsRef = useRef<Array<HTMLAnchorElement | null>>([]);
   const pathname = usePathname();
   const router = useRouter();
+
+  const { user, logout } = useAuth(); // ✅ Auth context
 
   /** ✅ Load cart count */
   async function loadCart() {
@@ -174,6 +177,36 @@ const NavBar = () => {
                 {item.label}
               </Link>
             ))}
+
+            {/* ✅ Auth Links */}
+            {user ? (
+              <>
+                <span className="text-gray-700 text-sm">
+                  Hi, {user.name}{" "}
+                  {user.role === "admin" && (
+                    <Link
+                      href="/admin"
+                      className="ml-2 text-blue-600 font-medium"
+                    >
+                      (Admin)
+                    </Link>
+                  )}
+                </span>
+                <button
+                  onClick={logout}
+                  className="bg-gray-100 px-3 py-1 rounded text-sm hover:bg-gray-200"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+              >
+                Login
+              </Link>
+            )}
           </div>
 
           {/* ✅ Cart (desktop) */}
@@ -270,6 +303,43 @@ const NavBar = () => {
                 {item.label}
               </Link>
             ))}
+
+            {/* ✅ Auth (mobile) */}
+            <div className="mt-4">
+              {user ? (
+                <>
+                  <span className="block text-gray-700 mb-2">
+                    Hi, {user.name}
+                  </span>
+                  {user.role === "admin" && (
+                    <Link
+                      href="/admin"
+                      className="block bg-blue-100 text-blue-700 px-4 py-2 rounded mb-2"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Admin Dashboard
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block bg-blue-600 text-white px-4 py-2 rounded text-center"
+                >
+                  Login
+                </Link>
+              )}
+            </div>
 
             {/* ✅ Cart (mobile) */}
             <div
