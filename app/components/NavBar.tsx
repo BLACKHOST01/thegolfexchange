@@ -278,7 +278,7 @@ const NavBar = () => {
       >
         <div className="flex flex-col h-full" onKeyDown={handleMenuKeyDown}>
           <div className="p-4 border-b">
-            <h2 className="text-xl font-bold text-gray-800">Navigation</h2>
+            <h2 className="text-lg font-bold text-gray-800">Navigation</h2>
           </div>
 
           <nav
