@@ -5,18 +5,18 @@ const prisma = new PrismaClient();
 
 /**
  * GET /api/products/[id]
- * Fetch a single product and its reviews
  */
 export async function GET(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id } = await params;
 
   try {
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
+        seller: true,
         reviews: {
           include: { user: true },
           orderBy: { createdAt: "desc" },
@@ -30,25 +30,21 @@ export async function GET(
     return NextResponse.json(product);
   } catch (error) {
     console.error("Error fetching product:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch product" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch product" }, { status: 500 });
   }
 }
+
 /**
  * PUT /api/products/[id]
- * Update product details
  */
 export async function PUT(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id } = await params;
 
   try {
     const data = await req.json();
-
     const updated = await prisma.product.update({
       where: { id },
       data,
@@ -63,13 +59,12 @@ export async function PUT(
 
 /**
  * DELETE /api/products/[id]
- * Delete a product
  */
 export async function DELETE(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id } = await params;
 
   try {
     await prisma.product.delete({ where: { id } });
