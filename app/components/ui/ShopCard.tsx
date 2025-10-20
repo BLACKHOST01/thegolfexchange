@@ -6,7 +6,7 @@ import Link from "next/link";
 
 interface ShopCardProps {
   id: string;
-  title: string;
+  title: React.ReactNode;
   description: string;
   price: number;
   image?: string;
@@ -37,7 +37,7 @@ export const ShopCard: React.FC<ShopCardProps> = ({
         <div className="relative w-full h-52">
           <Image
             src={image}
-            alt={title}
+            alt={typeof title === "string" ? title : ""} // use empty string if JSX
             fill
             className="object-cover"
             sizes="(max-width:768px) 100vw, 33vw"
@@ -52,7 +52,9 @@ export const ShopCard: React.FC<ShopCardProps> = ({
           <span className="text-sm text-gray-500 uppercase">{condition}</span>
         )}
         <p className="text-sm text-gray-500">{description}</p>
-        <p className="text-2xl font-bold text-blue-600">${price.toLocaleString()}</p>
+        <p className="text-2xl font-bold text-blue-600">
+          ${price.toLocaleString()}
+        </p>
 
         <motion.div whileHover={{ scale: 1.05 }}>
           <Link

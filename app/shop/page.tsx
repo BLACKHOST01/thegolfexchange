@@ -1,3 +1,6 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { ShopCard } from "../components/ui/ShopCard";
 
 interface Product {
@@ -9,108 +12,121 @@ interface Product {
   images?: string[];
 }
 
-interface ProductsResponse {
-  products: Product[];
-  totalPages: number;
-  currentPage: number;
-}
-
-// ✅ Fully SSR + async searchParams version
-export default async function ShopPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ page?: string }>;
-}) {
-  // Await searchParams (Next.js 15 async API)
-  const params = await searchParams;
-  const currentPage = Number(params?.page || 1);
+export default function ShopClient() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const limit = 6;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const apiUrl = `${baseUrl}/api/products?page=${currentPage}&limit=${limit}`;
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
 
-  let data: ProductsResponse | null = null;
-
-  try {
-    const res = await fetch(apiUrl, {
-      cache: "no-store", // disable caching for SSR
-    });
-
-    if (!res.ok) {
-      // Log response text for debugging
-      console.error("API error:", await res.text());
-      throw new Error("Failed to fetch products");
-    }
-
-    data = await res.json();
-  } catch (error) {
-    console.error("Error loading products:", error);
-    // Render graceful error state on the page
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch(
+          `/api/products?page=${page}&limit=${limit}&search=${encodeURIComponent(
+            debouncedSearch
+          )}`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        setProducts(data.products);
+        setTotalPages(data.totalPages);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchProducts();
+  }, [debouncedSearch, page]);
+  // Function to highlight matched search term in title (fancier)
+  const highlightText = (text: string, highlight: string) => {
+    if (!highlight) return text;
+    const regex = new RegExp(`(${highlight})`, "gi");
+    const parts = text.split(regex);
     return (
-      <section className="py-20 px-4 text-center">
-        <h1 className="text-2xl font-semibold text-red-600">
-          Something went wrong 😞
-        </h1>
-        <p className="mt-4 text-gray-600">
-          We couldn’t load the products right now. Please refresh or try again later.
-        </p>
-      </section>
+      <>
+        {parts.map((part, idx) =>
+          part.toLowerCase() === highlight.toLowerCase() ? (
+            <span
+              key={idx}
+              className="bg-yellow-200 text-yellow-800 font-semibold px-1 rounded"
+            >
+              {part}
+            </span>
+          ) : (
+            part
+          )
+        )}
+      </>
     );
-  }
-
-  if (!data) {
-    return (
-      <section className="py-20 px-4 text-center">
-        <h1 className="text-2xl font-semibold text-gray-600">
-          No products available.
-        </h1>
-      </section>
-    );
-  }
-
-  const { products, totalPages } = data;
+  };
 
   return (
     <section className="py-20 px-4">
-      {/* ✅ Product Grid */}
-      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8">
-        {products.map((p) => (
-          <ShopCard
-            key={p.id}
-            id={p.id}
-            title={p.title}
-            description={p.description}
-            price={p.price}
-            image={p.images?.[0] ?? "/placeholder.png"}
-            condition={p.condition}
-          />
-        ))}
+      {/* Search Input */}
+      <div className="mb-8 flex justify-center">
+        <input
+          type="text"
+          placeholder="Search products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-l-md px-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
-      {/* ✅ Pagination Controls */}
+      {/* Product Grid */}
+      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8">
+        {products.length > 0 ? (
+          products.map((p) => (
+            <ShopCard
+              key={p.id}
+              id={p.id}
+              title={highlightText(p.title, debouncedSearch)} // JSX safe now
+              description={p.description}
+              price={p.price}
+              image={p.images?.[0] ?? "/placeholder.png"}
+              condition={p.condition}
+            />
+          ))
+        ) : (
+          <p className="text-center col-span-full text-gray-500">
+            No products found for "{debouncedSearch}"
+          </p>
+        )}
+      </div>
+
+      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-4 mt-10">
-          <a
-            href={`/shop?page=${Math.max(currentPage - 1, 1)}`}
-            className={`px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition ${
-              currentPage === 1 ? "opacity-50 pointer-events-none" : ""
-            }`}
+          <button
+            onClick={() => setPage(Math.max(page - 1, 1))}
+            disabled={page === 1}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition disabled:opacity-50 disabled:pointer-events-none"
           >
             Previous
-          </a>
+          </button>
 
           <span className="text-gray-700 font-medium">
-            Page {currentPage} of {totalPages}
+            Page {page} of {totalPages}
           </span>
 
-          <a
-            href={`/shop?page=${Math.min(currentPage + 1, totalPages)}`}
-            className={`px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition ${
-              currentPage === totalPages ? "opacity-50 pointer-events-none" : ""
-            }`}
+          <button
+            onClick={() => setPage(Math.min(page + 1, totalPages))}
+            disabled={page === totalPages}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition disabled:opacity-50 disabled:pointer-events-none"
           >
             Next
-          </a>
+          </button>
         </div>
       )}
     </section>

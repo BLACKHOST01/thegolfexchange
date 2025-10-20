@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 /**
  * GET /api/products
  * Supports pagination via ?page=1&limit=6
+ * Supports search via ?search=keyword
  */
 export async function GET(req: Request) {
   try {
@@ -13,16 +14,27 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "6");
     const skip = (page - 1) * limit;
+    const search = searchParams.get("search") || "";
 
-    // Fetch products + total count
+    // ✅ Type-safe where filter
+    const where: Prisma.ProductWhereInput = search
+      ? {
+          title: {
+            contains: search,
+            mode: "insensitive", // TypeScript now knows this is valid
+          },
+        }
+      : {};
+
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         include: { seller: true },
+        where,
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
       }),
-      prisma.product.count(),
+      prisma.product.count({ where }),
     ]);
 
     return NextResponse.json({
