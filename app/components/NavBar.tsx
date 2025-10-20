@@ -118,7 +118,7 @@ const NavBar = () => {
 
   return (
     <nav
-      className="bg-white shadow-sm relative z-50"
+      className="bg-white shadow-sm fixed w-full z-50"
       aria-label="Main navigation"
     >
       {/* Skip link */}
@@ -184,9 +184,9 @@ const NavBar = () => {
             tabIndex={0}
             role="button"
           >
-            <ShoppingCart className="w-6 h-6" />
+            <ShoppingCart className="w-6 text-black h-6" />
             {totalQty > 0 && (
-              <span className="absolute -top-2 -right-2 bg-green-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              <span className="absolute -top-2 -right-2 bg-yellow-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                 {totalQty}
               </span>
             )}
@@ -282,9 +282,9 @@ const NavBar = () => {
               tabIndex={0}
               role="button"
             >
-              <ShoppingCart className="w-6 h-6" />
+              <ShoppingCart className="w-6 text-black h-6" />
               {totalQty > 0 && (
-                <span className="absolute -top-2 -right-2 bg-green-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-1 -right-2 bg-yellow-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                   {totalQty}
                 </span>
               )}

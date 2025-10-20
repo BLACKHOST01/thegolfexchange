@@ -13,7 +13,7 @@ export default function ShopPage() {
   }, []);
 
   return (
-    <section className="py-10 px-4 grid sm:grid-cols-2 md:grid-cols-3 gap-8">
+    <section className="py-22 px-4 grid sm:grid-cols-2 md:grid-cols-3 gap-8">
       {products.map((p: any) => (
         <ShopCard
           key={p.id}

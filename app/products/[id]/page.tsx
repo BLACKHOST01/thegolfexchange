@@ -136,7 +136,7 @@ export default function ProductPage() {
             className={`mt-6 px-5 py-2 rounded text-white ${
               cartLoading
                 ? "bg-gray-600 cursor-not-allowed"
-                : "bg-black hover:bg-gray-800"
+                : "bg-yellow-600 hover:bg-gray-800"
             }`}
           >
             {cartLoading ? "Adding..." : "Add to Cart"}
