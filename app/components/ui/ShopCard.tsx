@@ -67,7 +67,7 @@ export const ShopCard: React.FC<ShopCardProps> = ({
         )}
         <p className="text-sm text-gray-500">{description}</p>
         <p className="text-2xl font-bold text-blue-600">
-          ₦{price.toLocaleString()}
+          ${price.toLocaleString()}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-6 mt-3">
