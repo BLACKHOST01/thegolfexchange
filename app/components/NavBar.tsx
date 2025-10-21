@@ -183,7 +183,7 @@ const NavBar = () => {
               <>
                 <span className="text-gray-700 text-sm">
                   Hi, {user.name}{" "}
-                  {user.role === "admin" && (
+                  {user.role === "ADMIN" && (
                     <Link
                       href="/admin"
                       className="ml-2 text-blue-600 font-medium"
@@ -311,7 +311,7 @@ const NavBar = () => {
                   <span className="block text-gray-700 mb-2">
                     Hi, {user.name}
                   </span>
-                  {user.role === "admin" && (
+                  {user.role === "ADMIN" && (
                     <Link
                       href="/admin"
                       className="block bg-blue-100 text-blue-700 px-4 py-2 rounded mb-2"

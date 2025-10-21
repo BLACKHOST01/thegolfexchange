@@ -7,7 +7,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "user"; // ✅ added role
+  role: "ADMIN" | "USER";
 }
 
 interface AuthContextType {
@@ -32,7 +32,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(false);
   }, []);
 
-  // ✅ Login with redirect by role
+  // ✅ Helper to normalize user role
+  const normalizeUser = (data: any) => ({
+    ...data.user,
+    role: data.user.role?.toUpperCase(), // 🔥 ensure "ADMIN" / "USER"
+  });
+
+  // ✅ Login
   const login = async (email: string, password: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -43,16 +49,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Login failed");
 
-    setUser(data.user);
-    localStorage.setItem("user", JSON.stringify(data.user));
+    const normalizedUser = normalizeUser(data);
+
+    setUser(normalizedUser);
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
     localStorage.setItem("token", data.token);
 
     // 🚀 Redirect based on role
-    if (data.user.role === "admin") router.push("/admin");
+    if (normalizedUser.role === "ADMIN") router.push("/admin");
     else router.push("/shop");
   };
 
-  // ✅ Signup with redirect by role
+  // ✅ Signup
   const signup = async (name: string, email: string, password: string) => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -63,12 +71,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Signup failed");
 
-    setUser(data.user);
-    localStorage.setItem("user", JSON.stringify(data.user));
+    const normalizedUser = normalizeUser(data);
+
+    setUser(normalizedUser);
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
     localStorage.setItem("token", data.token);
 
     // 🚀 Redirect based on role
-    if (data.user.role === "admin") router.push("/admin");
+    if (normalizedUser.role === "ADMIN") router.push("/admin");
     else router.push("/shop");
   };
 
@@ -87,7 +97,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// ✅ Custom hook for easy use
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within an AuthProvider");

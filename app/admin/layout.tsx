@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <ProtectedRoute requiredRole="admin">
+    <ProtectedRoute requiredRole="ADMIN">
       <div className="flex min-h-screen bg-gray-100">
         {/* Sidebar */}
         <aside className="w-64 bg-white shadow-lg p-5 flex flex-col">

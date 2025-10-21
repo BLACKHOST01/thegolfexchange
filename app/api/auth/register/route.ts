@@ -1,36 +1,44 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "@/lib/auth";
+import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key";
 
 export async function POST(req: Request) {
   try {
     const { name, email, password } = await req.json();
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-    }
+    if (!name || !email || !password)
+      return NextResponse.json({ error: "All fields are required" }, { status: 400 });
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    // 🔎 Check if user already exists
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing)
       return NextResponse.json({ error: "Email already registered" }, { status: 400 });
-    }
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+    const hashed = await bcrypt.hash(password, 10);
 
-    // Create user
+    // 👇 Auto-promote admin for a specific email (you can change this)
+    const role = email === "admin@thegolfexchange.com" ? Role.ADMIN : Role.USER;
+
+    // ✅ Create user with Prisma enum
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword },
+      data: { name, email, password: hashed, role },
+    });
+
+    // 🔐 Generate JWT
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+      expiresIn: "7d",
     });
 
     return NextResponse.json({
-      message: "User created successfully",
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      token,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
+  } catch (error) {
+    console.error("Register Error:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
