@@ -23,12 +23,12 @@ const Footer = () => {
             <div className="flex items-center gap-2">
               <PhoneIcon className="w-5 h-5" />
               <span>
-                <a href="tel:+2348000000000">+234 (800) 000-0000</a>
+                <a href="tel:+2348000000000">+1 (800) 000-0000</a>
               </span>
             </div>
             <div className="flex items-center gap-2">
               <MapPinIcon className="w-5 h-5" />
-              <span>Lagos, Nigeria</span>
+              <span>Florida, USA</span>
             </div>
           </div>
 
@@ -64,7 +64,6 @@ const Footer = () => {
         {/* Copyright */}
         <div className="border-t border-green-800 pt-8 text-sm text-center text-gray-400">
           <p>&copy; {new Date().getFullYear()} The Golf Exchange. All rights reserved.</p>
-          <p className="mt-2">Powered by Next.js & Tailwind CSS</p>
         </div>
       </div>
     </footer>
