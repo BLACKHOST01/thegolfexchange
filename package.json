@@ -21,6 +21,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
+    "cookie": "^1.0.2",
     "framer-motion": "^12.23.24",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.545.0",

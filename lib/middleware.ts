@@ -1,16 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "./auth";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth";
 
-export const authMiddleware = (req: NextRequest) => {
+export function middleware(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
+
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const token = authHeader.split(" ")[1];
   const decoded = verifyToken(token);
+  if (!decoded) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+  }
 
-  if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  return NextResponse.next();
+}
 
-  return decoded; // you can attach to req if using next-connect
+export const config = {
+  matcher: ["/api/admin/:path*", "/dashboard/:path*"],
 };

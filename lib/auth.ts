@@ -15,7 +15,7 @@ export const comparePassword = async (password: string, hash: string) => {
 };
 
 // JWT helpers
-export const signToken = (payload: object, expiresIn: string | number = "7d") => {
+export const signToken = (payload: object, expiresIn: string | number = "1m") => {
   // Cast options as any to bypass TS typing issue in v9+
   const options: any = { expiresIn };
   return jwt.sign(payload as JwtPayload, JWT_SECRET, options);
