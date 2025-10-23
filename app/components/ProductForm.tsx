@@ -2,8 +2,8 @@
 
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { CategorySelect } from "@/app/components/CategorySelect";
-
 import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 
-// 🔹 Simple inline Combobox definition
 interface ComboboxOption {
   label: string;
   value: string;
@@ -62,7 +61,6 @@ function Combobox({ options, value, onChange, placeholder }: ComboboxProps) {
   );
 }
 
-// 🔹 Main Component
 interface ProductFormProps {
   initialData?: any;
   onSubmit: (data: any) => void;
@@ -75,15 +73,19 @@ export default function ProductForm({
   buttonLabel = "Save Product",
 }: ProductFormProps) {
   const { user } = useAuth();
+  const router = useRouter();
+
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [form, setForm] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
     price: initialData?.price || "",
     stock: initialData?.stock || 0,
-    category: initialData?.category || "",
-    subcategory: initialData?.subcategory || "",
+    categoryId: initialData?.categoryId || "",
+    subcategoryId: initialData?.subcategoryId || "",
     condition: initialData?.condition || "NEW",
     location: initialData?.location || "",
     isFeatured: initialData?.isFeatured || false,
@@ -112,11 +114,8 @@ export default function ProductForm({
     fetchSuggestions();
   }, []);
 
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-
     if (e.target instanceof HTMLInputElement && e.target.type === "checkbox") {
       setForm({ ...form, [name]: e.target.checked });
     } else {
@@ -132,37 +131,54 @@ export default function ProductForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!mounted) return;
+
+    if (!user?.token) {
+      console.error("❌ No valid authentication token found");
+      alert("Please log in again.");
+      return router.push("/login");
+    }
+
     setLoading(true);
-
-    let imagePaths: string[] = [];
-
     try {
-      if (images.length > 0) {
-        const formData = new FormData();
-        images.forEach((file) => formData.append("files", file));
+      const formData = new FormData();
+      formData.append("title", form.title);
+      formData.append("description", form.description);
+      formData.append("price", form.price.toString());
+      formData.append("stock", form.stock.toString());
+      formData.append("condition", form.condition);
+      formData.append("categoryId", form.categoryId);
+      formData.append("subcategoryId", form.subcategoryId);
+      images.forEach((file) => formData.append("files", file));
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: formData,
+      });
 
-        const uploadData = await uploadRes.json();
-        imagePaths = uploadData.paths || [];
-      } else if (initialData?.images) {
-        imagePaths = initialData.images;
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to create product");
       }
 
-      await onSubmit({
-        ...form,
-        images: imagePaths,
-        sellerId: user?.id || undefined,
-      });
-    } catch (err) {
-      console.error("Error saving product:", err);
+      const data = await res.json();
+      console.log("✅ Product created successfully:", data);
+      await onSubmit(data.product);
+
+      // Optional redirect
+      router.push("/admin/products");
+    } catch (err: any) {
+      console.error("❌ Error saving product:", err);
+      alert(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (!mounted) return null;
 
   return (
     <Card className="max-w-2xl mx-auto mt-10 border border-gray-200 shadow-lg rounded-2xl">
@@ -170,9 +186,8 @@ export default function ProductForm({
         <h2 className="text-2xl font-semibold text-gray-800 text-center">
           Add / Edit Product
         </h2>
-
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Product Info */}
+          {/* Title & Price */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Title</Label>
@@ -184,7 +199,6 @@ export default function ProductForm({
                 required
               />
             </div>
-
             <div className="space-y-2">
               <Label>Price (₦)</Label>
               <Input
@@ -197,6 +211,7 @@ export default function ProductForm({
             </div>
           </div>
 
+          {/* Description */}
           <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
@@ -215,18 +230,17 @@ export default function ProductForm({
               <Label>Category</Label>
               <Combobox
                 options={categorySuggestions.map((c) => ({ label: c, value: c }))}
-                value={form.category}
-                onChange={(val: string) => setForm({ ...form, category: val })}
+                value={form.categoryId}
+                onChange={(val) => setForm({ ...form, categoryId: val })}
                 placeholder="Select or type category"
               />
             </div>
-
             <div className="space-y-2">
               <Label>Subcategory</Label>
               <Combobox
                 options={subcategorySuggestions.map((s) => ({ label: s, value: s }))}
-                value={form.subcategory}
-                onChange={(val: string) => setForm({ ...form, subcategory: val })}
+                value={form.subcategoryId}
+                onChange={(val) => setForm({ ...form, subcategoryId: val })}
                 placeholder="Select or type subcategory"
               />
             </div>
@@ -236,47 +250,15 @@ export default function ProductForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Stock</Label>
-              <Input
-                name="stock"
-                type="number"
-                value={form.stock}
-                onChange={handleChange}
-              />
+              <Input name="stock" type="number" value={form.stock} onChange={handleChange} />
             </div>
-
             <div className="space-y-2">
               <Label>Condition</Label>
               <CategorySelect
                 label="Condition"
                 options={["NEW", "USED"]}
                 value={form.condition}
-                onChange={(val: string) => setForm({ ...form, condition: val })}
-              />
-            </div>
-          </div>
-
-          {/* Location & Rating */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Location</Label>
-              <Input
-                name="location"
-                value={form.location}
-                onChange={handleChange}
-                placeholder="e.g., Lagos, Nigeria"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Rating</Label>
-              <Input
-                name="rating"
-                type="number"
-                step="0.1"
-                min="1"
-                max="5"
-                value={form.rating}
-                onChange={handleChange}
+                onChange={(val) => setForm({ ...form, condition: val })}
               />
             </div>
           </div>
@@ -314,7 +296,6 @@ export default function ProductForm({
               />
               Featured
             </Label>
-
             <Label className="flex items-center gap-2">
               <Switch
                 checked={form.isUsed}
@@ -324,7 +305,6 @@ export default function ProductForm({
             </Label>
           </div>
 
-          {/* Submit */}
           <Button
             type="submit"
             disabled={loading}
