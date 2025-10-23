@@ -4,6 +4,7 @@ import { PrismaClient, Prisma, UploadedFile } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
 
+
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key";
 
@@ -15,6 +16,7 @@ const extractTokenFromReq = (req: Request): string | null => {
   if (authHeader.startsWith("Bearer ")) {
     return authHeader.split(" ")[1];
   }
+  // fallback for cookies
   const cookies = cookie.parse(req.headers.get("cookie") || "");
   return cookies.token || null;
 };
@@ -56,6 +58,7 @@ const normalizeImages = (raw: unknown): string[] => {
 /**
  * GET /api/products
  */
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -75,7 +78,7 @@ export async function GET(req: Request) {
       prisma.product.findMany({
         include: {
           seller: true,
-          images: true, // ✅ matches schema
+          images: true, // Prisma relation
         },
         where,
         orderBy: { createdAt: "desc" },
@@ -85,15 +88,14 @@ export async function GET(req: Request) {
       prisma.product.count({ where }),
     ]);
 
-    // ✅ Map binary images to base64 URLs safely
+    // ✅ Map images to file URLs instead of base64
     const normalized = products.map((p) => ({
       ...p,
       images: (p.images as UploadedFile[]).map((f) => ({
+        id: f.id,
         name: f.name,
         mimeType: f.mimeType,
-        url: `data:${f.mimeType};base64,${Buffer.from(f.data).toString(
-          "base64"
-        )}`,
+        url: `/api/files/${f.id}`, // direct URL to your file endpoint
       })),
     }));
 
@@ -112,26 +114,34 @@ export async function GET(req: Request) {
   }
 }
 
+
 /**
  * POST /api/products
  * Create a product with image uploads stored directly in the database.
  */
+/**
+ * POST /api/products
+ * Create a product with image uploads stored directly in the database.
+ */
+
+
 export async function POST(req: Request) {
   try {
+    // ✅ Auth check
     const token = extractTokenFromReq(req);
     const user = verifyToken(token);
     if (!user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // ✅ Parse multipart form data
     const formData = await req.formData();
-
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
     const price = parseFloat(formData.get("price") as string);
     const condition = (formData.get("condition") as "NEW" | "USED") || "NEW";
     const stock = parseInt(formData.get("stock") as string) || 1;
-    const categoryId = formData.get("categoryId") as string | null;
-    const subcategoryId = formData.get("subcategoryId") as string | null;
+    const categoryId = (formData.get("categoryId") as string) || null;
+    const subcategoryId = (formData.get("subcategoryId") as string) || null;
     const files = formData.getAll("files") as File[];
 
     if (!title || !description) {
@@ -141,6 +151,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // ✅ Create the product
     const product = await prisma.product.create({
       data: {
         title,
@@ -154,22 +165,36 @@ export async function POST(req: Request) {
       },
     });
 
-    for (const file of files) {
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
+    // ✅ Upload images
+    const uploadedFiles = await Promise.all(
+      files.map(async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-      await prisma.uploadedFile.create({
-        data: {
-          name: file.name,
-          mimeType: file.type,
-          data: buffer,
-          productId: product.id,
-        },
-      });
-    }
+        return prisma.uploadedFile.create({
+          data: {
+            name: file.name,
+            mimeType: file.type,
+            data: buffer,
+            productId: product.id,
+          },
+        });
+      })
+    );
+
+    // ✅ Return product with image URLs
+    const productWithImages = {
+      ...product,
+      images: uploadedFiles.map((f) => ({
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        url: `/api/files/${f.id}`, // ✅ direct URL endpoint
+      })),
+    };
 
     return NextResponse.json(
-      { message: "Product created successfully", product },
+      { message: "Product created successfully", product: productWithImages },
       { status: 201 }
     );
   } catch (error: any) {

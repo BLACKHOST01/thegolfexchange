@@ -1,44 +1,44 @@
 "use client";
 
-import React, { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: "ADMIN" | "USER"; // restricts to known roles
+  requiredRole?: "ADMIN" | "USER";
 }
 
-/**
- * Protects a route by ensuring the user is authenticated
- * and optionally has the correct role.
- */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredRole,
 }) => {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  // ✅ Always call hooks at top level
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
-    console.log("ProtectedRoute:", { user, requiredRole }); // Debug line
+    if (!mounted) return; // only run after mount
+    console.log("ProtectedRoute:", { user, requiredRole });
 
     if (!loading) {
       if (!user) {
         router.push("/login");
         return;
       }
-
-      if (
-        requiredRole &&
-        user.role?.toUpperCase() !== requiredRole.toUpperCase()
-      ) {
+      if (requiredRole && user.role?.toUpperCase() !== requiredRole.toUpperCase()) {
         router.push("/unauthorized");
       }
     }
-  }, [user, loading, requiredRole, router]);
+  }, [user, loading, requiredRole, router, mounted]);
 
-  if (loading) {
+  // ✅ Show loading state until mounted
+  if (!mounted || loading) {
     return (
       <div className="flex justify-center items-center h-screen text-gray-500">
         Checking authentication...
@@ -47,11 +47,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // ✅ Render children only if authorized
-  if (
-    user &&
-    (!requiredRole ||
-      user.role?.toUpperCase() === requiredRole.toUpperCase())
-  ) {
+  if (user && (!requiredRole || user.role?.toUpperCase() === requiredRole.toUpperCase())) {
     return <>{children}</>;
   }
 

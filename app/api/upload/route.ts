@@ -1,39 +1,43 @@
 import { NextResponse } from "next/server";
-import { v2 as cloudinary } from "cloudinary";
+import { PrismaClient } from "@prisma/client";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
-  api_key: process.env.CLOUDINARY_API_KEY!,
-  api_secret: process.env.CLOUDINARY_API_SECRET!,
-});
+const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
-  const data = await req.formData();
-  const files = data.getAll("files") as File[];
+  try {
+    const data = await req.formData();
+    const files = data.getAll("files") as File[];
 
-  if (!files || files.length === 0) {
-    return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
+    }
+
+    // Save files to DB
+    const uploadedFiles = await Promise.all(
+      files.map(async (file) => {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const record = await prisma.uploadedFile.create({
+          data: {
+            name: file.name,
+            mimeType: file.type,
+            data: buffer,
+          },
+        });
+        return {
+          id: record.id,
+          name: record.name,
+          mimeType: record.mimeType,
+          url: `/api/files/${record.id}`, // direct access URL
+        };
+      })
+    );
+
+    return NextResponse.json({ files: uploadedFiles }, { status: 201 });
+  } catch (err: any) {
+    console.error("Error uploading files:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to upload files" },
+      { status: 500 }
+    );
   }
-
-  const uploadedUrls: string[] = [];
-
-  for (const file of files) {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: "uploads" },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      stream.end(buffer);
-    });
-
-    uploadedUrls.push((uploadResult as any).secure_url);
-  }
-
-  return NextResponse.json({ urls: uploadedUrls });
 }

@@ -8,6 +8,7 @@ interface User {
   name: string;
   email: string;
   role: "ADMIN" | "USER";
+  token?: string;
 }
 
 interface AuthContextType {
@@ -51,6 +52,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const normalizedUser = normalizeUser(data);
 
+    
     setUser(normalizedUser);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
     localStorage.setItem("token", data.token);
