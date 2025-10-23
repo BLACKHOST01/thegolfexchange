@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> } // ✅ params is a Promise
 ) {
-  const { id } = params;
+  const { params } = context;
+  const { id } = await params; // ✅ await the Promise
 
   try {
     const file = await prisma.uploadedFile.findUnique({
@@ -18,7 +19,6 @@ export async function GET(
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    // ✅ Convert Prisma Uint8Array to Buffer
     const buffer = Buffer.from(file.data);
 
     return new Response(buffer, {
@@ -29,9 +29,6 @@ export async function GET(
     });
   } catch (err) {
     console.error("Error fetching file:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch file" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch file" }, { status: 500 });
   }
 }
