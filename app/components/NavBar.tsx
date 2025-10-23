@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import golfball from "@/public/golf-ball.webp";
+import golfball from "@/public/placeholder.png";
+// import placehoder from "@/piublic/placeholder"
 import { ShoppingCart } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // ✅ Add Auth Context
 
@@ -143,8 +144,8 @@ const NavBar = () => {
             <Image
               src={golfball}
               alt="Logo"
-              width={32}
-              height={32}
+              width={102}
+              height={102}
               className={`rounded-full transition-opacity ${
                 isLogoLoaded ? "opacity-100" : "opacity-0"
               }`}
@@ -157,9 +158,6 @@ const NavBar = () => {
             {!isLogoLoaded && (
               <div className="w-8 h-8 bg-gray-200 animate-pulse rounded-full ml-2" />
             )}
-            <span className="ml-2 font-semibold text-gray-900">
-              TheGolfExchange
-            </span>
           </Link>
 
           {/* ✅ Desktop Menu */}
