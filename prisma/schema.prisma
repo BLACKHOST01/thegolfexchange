@@ -68,30 +68,40 @@ model Subcategory {
 }
 
 model Product {
-  id            String       @id @default(cuid())
+  id            String         @id @default(cuid())
   title         String
   description   String
   price         Float
   categoryId    String?
-  category      Category?    @relation(fields: [categoryId], references: [id])
+  category      Category?      @relation(fields: [categoryId], references: [id])
   subcategoryId String?
-  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
+  subcategory   Subcategory?   @relation(fields: [subcategoryId], references: [id])
   condition     Condition
-  images        String[]
+  images        UploadedFile[] // ✅ renamed relation
   stock         Int
-  isUsed        Boolean      @default(false)
-  isFeatured    Boolean      @default(false)
-  rating        Float        @default(0)
+  isUsed        Boolean        @default(false)
+  isFeatured    Boolean        @default(false)
+  rating        Float          @default(0)
   sellerId      String
-  seller        User         @relation(fields: [sellerId], references: [id])
+  seller        User           @relation(fields: [sellerId], references: [id])
   location      String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  // 🆕 Opposite relations
-  orderItems OrderItem[] // link to OrderItem.product
-  reviews    Review[] // link to Review.product
-  cartItems  CartItem[] // link to CartItem.product
+  orderItems OrderItem[]
+  reviews    Review[]
+  cartItems  CartItem[]
+}
+
+model UploadedFile {
+  id        String   @id @default(cuid())
+  name      String
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
 }
 
 model Order {

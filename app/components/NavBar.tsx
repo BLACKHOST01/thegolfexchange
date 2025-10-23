@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import golfball from "@/public/placeholder.png";
-// import placehoder from "@/piublic/placeholder"
 import { ShoppingCart } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // ✅ Add Auth Context
 

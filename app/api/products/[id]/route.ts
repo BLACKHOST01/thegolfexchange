@@ -27,21 +27,8 @@ export async function GET(
     if (!product)
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-    // ✅ Ensure images is always an array
-    let images: string[] = [];
-
-    const rawImages = product.images as unknown; // safely cast
-    if (typeof rawImages === "string") {
-      try {
-        images = JSON.parse(rawImages) as string[];
-      } catch {
-        images = (rawImages as string).split(",").map((i: string) => i.trim());
-      }
-    } else if (Array.isArray(rawImages)) {
-      images = rawImages as string[];
-    }
-
-    return NextResponse.json({ ...product, images });
+    // Prisma already returns images as string[]
+    return NextResponse.json(product);
   } catch (error) {
     console.error("Error fetching product:", error);
     return NextResponse.json(
@@ -73,11 +60,10 @@ export async function PUT(
       isFeatured: data.isFeatured ?? false,
       isUsed: data.isUsed ?? false,
       rating: data.rating ? Number(data.rating) : undefined,
-      images: data.images ?? [],
       sellerId: data.sellerId,
+      images: Array.isArray(data.images) ? data.images : [], // ✅ directly assign
     };
 
-    // Handle category and subcategory relations safely
     if (data.categoryId) {
       parsedData.category = { connect: { id: data.categoryId } };
     } else if (data.category === null) {
