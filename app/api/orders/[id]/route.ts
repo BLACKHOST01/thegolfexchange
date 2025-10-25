@@ -42,6 +42,12 @@ export async function GET(
                     name: true,
                   },
                 },
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
                 seller: {
                   select: {
                     id: true,
@@ -137,18 +143,30 @@ export async function PUT(
         items: {
           include: {
             product: {
-              select: {
-                id: true,
-                title: true,
+              include: {
                 images: {
                   select: {
                     id: true,
                     name: true,
                   },
-                  take: 1,
+                },
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
                 },
               },
             },
+          },
+        },
+        transaction: {
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            provider: true,
+            status: true,
           },
         },
       },

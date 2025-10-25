@@ -49,6 +49,7 @@ model User {
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
   cart             Cart? // ✅ Added opposite relation for Cart
+  notes            Note[] // Add this line to complete the relation
 }
 
 model Category {
@@ -114,8 +115,10 @@ model Order {
   buyer   User   @relation(fields: [buyerId], references: [id])
   buyerId String
 
-  items       OrderItem[]
-  transaction Transaction? // ✅ Added opposite relation for Transaction
+  items           OrderItem[]
+  transaction     Transaction?
+  shippingAddress ShippingAddress? // ✅ Add this
+  notes           Note[] // ✅ Add this
 }
 
 model OrderItem {
@@ -128,6 +131,39 @@ model OrderItem {
 
   order   Order  @relation(fields: [orderId], references: [id])
   orderId String
+}
+
+// =============== ADDITIONAL MODELS =====================
+
+model ShippingAddress {
+  id         String @id @default(cuid())
+  street     String
+  city       String
+  state      String
+  country    String @default("Nigeria")
+  postalCode String
+
+  order   Order?  @relation(fields: [orderId], references: [id])
+  orderId String? @unique
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  content   String
+  type      NoteType @default(INTERNAL)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order   Order  @relation(fields: [orderId], references: [id])
+  orderId String
+
+  author   User?   @relation(fields: [authorId], references: [id]) // This relation field
+  authorId String? // This is the relation scalar field
+}
+
+enum NoteType {
+  INTERNAL
+  CUSTOMER
 }
 
 model Review {
