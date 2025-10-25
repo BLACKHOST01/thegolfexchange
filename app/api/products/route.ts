@@ -4,37 +4,28 @@ import { PrismaClient, Prisma, UploadedFile } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
 
-
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key";
 
 /**
  * Extract token from Authorization header or cookie
  */
-const extractTokenFromReq = (req: Request): string | null => {
-  const authHeader = req.headers.get("authorization") || "";
-  if (authHeader.startsWith("Bearer ")) {
-    return authHeader.split(" ")[1];
-  }
-  // fallback for cookies
-  const cookies = cookie.parse(req.headers.get("cookie") || "");
-  return cookies.token || null;
-};
+// ✅ Helper functions
+function extractTokenFromReq(req: Request) {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  return authHeader.split(" ")[1];
+}
 
-/**
- * Verify token and return payload
- */
-const verifyToken = (
-  token: string | null
-): { id: string; role?: string } | null => {
+function verifyToken(token: string | null) {
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET) as any;
+    const payload = jwt.verify(token, process.env.JWT_SECRET!);
+    return payload as { id: string; role: string };
   } catch {
     return null;
   }
-};
-
+}
 /**
  * Normalize images field to string[]
  */
@@ -114,7 +105,6 @@ export async function GET(req: Request) {
   }
 }
 
-
 /**
  * POST /api/products
  * Create a product with image uploads stored directly in the database.
@@ -123,7 +113,6 @@ export async function GET(req: Request) {
  * POST /api/products
  * Create a product with image uploads stored directly in the database.
  */
-
 
 export async function POST(req: Request) {
   try {

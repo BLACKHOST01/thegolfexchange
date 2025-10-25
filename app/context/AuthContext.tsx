@@ -8,7 +8,7 @@ interface User {
   name: string;
   email: string;
   role: "ADMIN" | "USER";
-  token?: string;
+  token: string; // ✅ make token required
 }
 
 interface AuthContextType {
@@ -26,20 +26,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // ✅ Load user from localStorage on mount
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) setUser(JSON.parse(storedUser));
     setLoading(false);
   }, []);
 
-  // ✅ Helper to normalize user role
   const normalizeUser = (data: any) => ({
     ...data.user,
-    role: data.user.role?.toUpperCase(), // 🔥 ensure "ADMIN" / "USER"
+    role: data.user.role?.toUpperCase(),
+    token: data.token, // ✅ include token in user object
   });
 
-  // ✅ Login
   const login = async (email: string, password: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -52,17 +50,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const normalizedUser = normalizeUser(data);
 
-    
     setUser(normalizedUser);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
-    localStorage.setItem("token", data.token);
 
-    // 🚀 Redirect based on role
     if (normalizedUser.role === "ADMIN") router.push("/admin");
     else router.push("/shop");
   };
 
-  // ✅ Signup
   const signup = async (name: string, email: string, password: string) => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -77,18 +71,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     setUser(normalizedUser);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
-    localStorage.setItem("token", data.token);
 
-    // 🚀 Redirect based on role
     if (normalizedUser.role === "ADMIN") router.push("/admin");
     else router.push("/shop");
   };
 
-  // ✅ Logout
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
-    localStorage.removeItem("token");
     router.push("/login");
   };
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
-import { CategorySelect } from "@/app/components/CategorySelect";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -11,18 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 
+// Combobox Component
 interface ComboboxOption {
   label: string;
   value: string;
 }
-
 interface ComboboxProps {
   options: ComboboxOption[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
 }
-
 function Combobox({ options, value, onChange, placeholder }: ComboboxProps) {
   const [query, setQuery] = useState("");
 
@@ -61,9 +59,10 @@ function Combobox({ options, value, onChange, placeholder }: ComboboxProps) {
   );
 }
 
+// Product Form
 interface ProductFormProps {
   initialData?: any;
-  onSubmit: (data: any) => void;
+  onSubmit?: (data: any) => void;
   buttonLabel?: string;
 }
 
@@ -72,13 +71,12 @@ export default function ProductForm({
   onSubmit,
   buttonLabel = "Save Product",
 }: ProductFormProps) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-
-  const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [loading, setLoading] = useState(false);
 
+  // Form state
   const [form, setForm] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -87,34 +85,40 @@ export default function ProductForm({
     categoryId: initialData?.categoryId || "",
     subcategoryId: initialData?.subcategoryId || "",
     condition: initialData?.condition || "NEW",
-    location: initialData?.location || "",
     isFeatured: initialData?.isFeatured || false,
     isUsed: initialData?.isUsed || false,
-    rating: initialData?.rating || 4.5,
   });
 
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(initialData?.images || []);
-  const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
-  const [subcategorySuggestions, setSubcategorySuggestions] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [subcategories, setSubcategories] = useState<string[]>([]);
 
   useEffect(() => {
+    setMounted(true);
+
     async function fetchSuggestions() {
       try {
-        const [cats, subs] = await Promise.all([
+        const [catRes, subRes] = await Promise.all([
           fetch("/api/categories").then((r) => r.json()),
           fetch("/api/subcategories").then((r) => r.json()),
         ]);
-        setCategorySuggestions(cats.map((c: any) => c.name));
-        setSubcategorySuggestions(subs.map((s: any) => s.name));
+        setCategories(catRes.map((c: any) => c.name));
+        setSubcategories(subRes.map((s: any) => s.name));
       } catch (err) {
         console.error("Error fetching categories/subcategories:", err);
       }
     }
     fetchSuggestions();
   }, []);
+  const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  // Handlers
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     if (e.target instanceof HTMLInputElement && e.target.type === "checkbox") {
       setForm({ ...form, [name]: e.target.checked });
@@ -126,18 +130,17 @@ export default function ProductForm({
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     setImages(files);
-    setPreviews(files.map((file) => URL.createObjectURL(file)));
+    setPreviews(files.map((f) => URL.createObjectURL(f)));
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!mounted) return;
+    if (!mounted || authLoading) return;
 
-    if (!user?.token) {
-      console.error("❌ No valid authentication token found");
-      alert("Please log in again.");
-      return router.push("/login");
-    }
+    // if (!user?.token) {
+    //   alert("❌ Please log in to add a product.");
+    //   return router.push("/login");
+    // }
 
     setLoading(true);
     try {
@@ -153,9 +156,9 @@ export default function ProductForm({
 
       const res = await fetch("/api/products", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
+        // headers: {
+        //   Authorization: `Bearer ${user.token}`,
+        // },
         body: formData,
       });
 
@@ -165,10 +168,10 @@ export default function ProductForm({
       }
 
       const data = await res.json();
-      console.log("✅ Product created successfully:", data);
-      await onSubmit(data.product);
+      console.log("✅ Product created:", data);
 
-      // Optional redirect
+      if (onSubmit) onSubmit(data.product);
+
       router.push("/admin/products");
     } catch (err: any) {
       console.error("❌ Error saving product:", err);
@@ -178,7 +181,7 @@ export default function ProductForm({
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted) return null; // ✅ prevent hydration issues
 
   return (
     <Card className="max-w-2xl mx-auto mt-10 border border-gray-200 shadow-lg rounded-2xl">
@@ -189,18 +192,17 @@ export default function ProductForm({
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title & Price */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div>
               <Label>Title</Label>
               <Input
                 name="title"
                 value={form.title}
                 onChange={handleChange}
-                placeholder="Product title"
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label>Price (₦)</Label>
+            <div>
+              <Label>Price</Label>
               <Input
                 name="price"
                 type="number"
@@ -212,66 +214,70 @@ export default function ProductForm({
           </div>
 
           {/* Description */}
-          <div className="space-y-2">
+          <div>
             <Label>Description</Label>
             <Textarea
               name="description"
               value={form.description}
               onChange={handleChange}
-              placeholder="Product description..."
-              rows={3}
               required
             />
           </div>
 
           {/* Category & Subcategory */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div>
               <Label>Category</Label>
               <Combobox
-                options={categorySuggestions.map((c) => ({ label: c, value: c }))}
+                options={categories.map((c) => ({ label: c, value: c }))}
                 value={form.categoryId}
                 onChange={(val) => setForm({ ...form, categoryId: val })}
-                placeholder="Select or type category"
+                placeholder="Select category"
               />
             </div>
-            <div className="space-y-2">
+            <div>
               <Label>Subcategory</Label>
               <Combobox
-                options={subcategorySuggestions.map((s) => ({ label: s, value: s }))}
+                options={subcategories.map((s) => ({ label: s, value: s }))}
                 value={form.subcategoryId}
                 onChange={(val) => setForm({ ...form, subcategoryId: val })}
-                placeholder="Select or type subcategory"
+                placeholder="Select subcategory"
               />
             </div>
           </div>
 
           {/* Stock & Condition */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div>
               <Label>Stock</Label>
-              <Input name="stock" type="number" value={form.stock} onChange={handleChange} />
-            </div>
-            <div className="space-y-2">
-              <Label>Condition</Label>
-              <CategorySelect
-                label="Condition"
-                options={["NEW", "USED"]}
-                value={form.condition}
-                onChange={(val) => setForm({ ...form, condition: val })}
+              <Input
+                name="stock"
+                type="number"
+                value={form.stock}
+                onChange={handleChange}
               />
+            </div>
+            <div>
+              <Label>Condition</Label>
+              <select
+                name="condition"
+                value={form.condition}
+                onChange={handleSelectChange}
+              >
+                <option value="NEW">NEW</option>
+                <option value="USED">USED</option>
+              </select>
             </div>
           </div>
 
-          {/* Image Upload */}
-          <div className="space-y-2">
+          {/* Images */}
+          <div>
             <Label>Upload Images</Label>
             <Input
               type="file"
-              accept="image/*"
               multiple
+              accept="image/*"
               onChange={handleImageChange}
-              className="mt-1"
             />
             {previews.length > 0 && (
               <div className="grid grid-cols-3 gap-3 mt-3">
