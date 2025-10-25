@@ -167,7 +167,7 @@ export async function PUT(
   }
 }
 
-// ✅ DELETE /api/users/[id]
+// ✅ DELETE /api/users/[id] - Safe approach (checks for related records)
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -194,32 +194,64 @@ export async function DELETE(
       );
     }
 
-    // Check if user has related records
-    const [cartItems, orders, ] = await Promise.all([
+    // Check for all related records
+    const [
+      cart,
+      products,
+      orders,
+      reviews,
+      sentMessages,
+      receivedMessages
+    ] = await Promise.all([
       prisma.cart.findMany({
         where: { userId: id },
         select: { id: true }
       }),
-      
-      
+      prisma.product.findMany({
+        where: { sellerId: id },
+        select: { id: true, title: true }
+      }),
+      prisma.order.findMany({
+        where: { buyerId: id },
+        select: { id: true }
+      }),
       prisma.review.findMany({
         where: { userId: id },
+        select: { id: true }
+      }),
+      prisma.message.findMany({
+        where: { senderId: id },
+        select: { id: true }
+      }),
+      prisma.message.findMany({
+        where: { receiverId: id },
         select: { id: true }
       })
     ]);
 
-    const hasRelatedRecords = cartItems.length > 0 || orders.length > 0 ;
-                             
+    const hasRelatedRecords = 
+      cart.length > 0 || 
+      products.length > 0 || 
+      orders.length > 0 || 
+      reviews.length > 0 || 
+      sentMessages.length > 0 || 
+      receivedMessages.length > 0;
 
     if (hasRelatedRecords) {
       return NextResponse.json(
         { 
           error: "Cannot delete user with existing records",
           details: {
-            cartItems: cartItems.length,
+            cart: cart.length,
+            products: products.length,
             orders: orders.length,
-          
-          }
+            reviews: reviews.length,
+            sentMessages: sentMessages.length,
+            receivedMessages: receivedMessages.length,
+            // Show product titles for better context
+            productTitles: products.map(p => p.title).slice(0, 5) // Show first 5 titles
+          },
+          suggestion: "Please delete or transfer all related records before deleting this user."
         },
         { status: 409 }
       );
@@ -246,7 +278,7 @@ export async function DELETE(
       return NextResponse.json(
         { 
           error: "Cannot delete user with existing records",
-          suggestion: "Please delete all related cart items, orders, payments, and reviews first, or use the cascade delete option."
+          suggestion: "Please delete all related cart items, products, orders, reviews, and messages first."
         },
         { status: 409 }
       );

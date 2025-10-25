@@ -34,13 +34,13 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 // Reusable Avatar Component
-function UserAvatar({ 
-  src, 
-  alt, 
-  size = 50 
-}: { 
-  src?: string; 
-  alt: string; 
+function UserAvatar({
+  src,
+  alt,
+  size = 50,
+}: {
+  src?: string;
+  alt: string;
   size?: number;
 }) {
   const [avatarSrc, setAvatarSrc] = useState(src || "/avatar-placeholder.png");
@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
       if (roleFilter !== "ALL") params.append("role", roleFilter);
-      
+
       const res = await fetch(`/api/users?${params}`);
       if (!res.ok) throw new Error("Failed to fetch users");
       const data = await res.json();
@@ -97,20 +97,56 @@ export default function AdminUsersPage() {
   }, [fetchUsers]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
-    
+    if (
+      !confirm(
+        "Are you sure you want to delete this user? This action cannot be undone."
+      )
+    )
+      return;
+
     try {
       setDeletingId(id);
-      const res = await fetch(`/api/users/${id}`, { 
-        method: "DELETE" 
+      const res = await fetch(`/api/users/${id}`, {
+        method: "DELETE",
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to delete user");
+
+        if (errorData.details) {
+          // Show detailed error about related records
+          const details = errorData.details;
+          const message =
+            `This user has related records that must be handled first:\n\n` +
+            `🛒 Cart: ${details.cart} item(s)\n` +
+            `📦 Products: ${details.products} product(s)\n` +
+            `📋 Orders: ${details.orders} order(s)\n` +
+            `⭐ Reviews: ${details.reviews} review(s)\n` +
+            `✉️ Sent Messages: ${details.sentMessages} message(s)\n` +
+            `📨 Received Messages: ${details.receivedMessages} message(s)\n\n` +
+            `Please remove these records or transfer them to another user before deletion.`;
+
+          if (details.productTitles && details.productTitles.length > 0) {
+            alert(
+              message +
+                `\n\nSome products: ${details.productTitles.join(", ")}${
+                  details.products > 5 ? "..." : ""
+                }`
+            );
+          } else {
+            alert(message);
+          }
+        } else {
+          throw new Error(errorData.error || "Failed to delete user");
+        }
+        return;
       }
-      
+
+      // Success - refresh the user list
       fetchUsers();
+
+      // Optional: Show success message
+      alert("User deleted successfully!");
     } catch (err: any) {
       console.error("Delete error:", err);
       alert(`Failed to delete user: ${err.message}`);
@@ -150,12 +186,22 @@ export default function AdminUsersPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              <svg
+                className="h-5 w-5 text-red-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error loading users</h3>
+              <h3 className="text-sm font-medium text-red-800">
+                Error loading users
+              </h3>
               <p className="text-sm text-red-700 mt-1">{error}</p>
             </div>
           </div>
@@ -185,7 +231,7 @@ export default function AdminUsersPage() {
             + Add User
           </Link>
         </div>
-        
+
         {/* Search and Filter */}
         <div className="mb-6 space-y-4 sm:space-y-0 sm:flex sm:space-x-4">
           <div className="flex-1">
@@ -207,19 +253,30 @@ export default function AdminUsersPage() {
             <option value="ADMIN">Admin</option>
           </select>
         </div>
-        
+
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+            <svg
+              className="w-16 h-16 mx-auto"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+              />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No users found
+          </h3>
           <p className="text-gray-500 mb-4">
-            {searchTerm || roleFilter !== "ALL" 
-              ? "Try adjusting your search or filters" 
-              : "Get started by creating your first user"
-            }
+            {searchTerm || roleFilter !== "ALL"
+              ? "Try adjusting your search or filters"
+              : "Get started by creating your first user"}
           </p>
           {!searchTerm && roleFilter === "ALL" && (
             <Link
@@ -274,9 +331,9 @@ export default function AdminUsersPage() {
       {/* Mobile Cards */}
       <div className="grid grid-cols-1 sm:hidden gap-4">
         {currentUsers.map((user) => (
-          <UserCard 
-            key={user.id} 
-            user={user} 
+          <UserCard
+            key={user.id}
+            user={user}
             onDelete={handleDelete}
             deletingId={deletingId}
           />
@@ -299,9 +356,9 @@ export default function AdminUsersPage() {
           </thead>
           <tbody>
             {currentUsers.map((user) => (
-              <UserRow 
-                key={user.id} 
-                user={user} 
+              <UserRow
+                key={user.id}
+                user={user}
                 onDelete={handleDelete}
                 deletingId={deletingId}
               />
@@ -339,21 +396,25 @@ function UserRow({
       <td className="p-3 border-b font-medium text-gray-900">{user.name}</td>
       <td className="p-3 border-b text-gray-700">{user.email}</td>
       <td className="p-3 border-b">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          user.role === "ADMIN" 
-            ? "bg-purple-100 text-purple-800" 
-            : "bg-blue-100 text-blue-800"
-        }`}>
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            user.role === "ADMIN"
+              ? "bg-purple-100 text-purple-800"
+              : "bg-blue-100 text-blue-800"
+          }`}
+        >
           {user.role}
         </span>
       </td>
       <td className="p-3 border-b">
         <div className="flex items-center">
-          <div className={`w-2 h-2 rounded-full mr-2 ${
-            user.isVerified ? 'bg-green-500' : 'bg-yellow-500'
-          }`} />
+          <div
+            className={`w-2 h-2 rounded-full mr-2 ${
+              user.isVerified ? "bg-green-500" : "bg-yellow-500"
+            }`}
+          />
           <span className="text-sm text-gray-600">
-            {user.isVerified ? 'Verified' : 'Pending'}
+            {user.isVerified ? "Verified" : "Pending"}
           </span>
         </div>
       </td>
@@ -402,19 +463,23 @@ function UserCard({
           <h3 className="font-semibold text-gray-800">{user.name}</h3>
           <p className="text-gray-600 text-sm">{user.email}</p>
           <div className="flex items-center gap-2 mt-1">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-              user.role === "ADMIN" 
-                ? "bg-purple-100 text-purple-800" 
-                : "bg-blue-100 text-blue-800"
-            }`}>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                user.role === "ADMIN"
+                  ? "bg-purple-100 text-purple-800"
+                  : "bg-blue-100 text-blue-800"
+              }`}
+            >
               {user.role}
             </span>
             <div className="flex items-center">
-              <div className={`w-2 h-2 rounded-full mr-1 ${
-                user.isVerified ? 'bg-green-500' : 'bg-yellow-500'
-              }`} />
+              <div
+                className={`w-2 h-2 rounded-full mr-1 ${
+                  user.isVerified ? "bg-green-500" : "bg-yellow-500"
+                }`}
+              />
               <span className="text-xs text-gray-600">
-                {user.isVerified ? 'Verified' : 'Pending'}
+                {user.isVerified ? "Verified" : "Pending"}
               </span>
             </div>
           </div>
@@ -436,7 +501,9 @@ function UserCard({
           )}
           <div className="flex justify-between">
             <span className="font-semibold">ID:</span>
-            <span className="text-xs font-mono truncate max-w-[120px]">{user.id}</span>
+            <span className="text-xs font-mono truncate max-w-[120px]">
+              {user.id}
+            </span>
           </div>
           <div className="flex justify-end mt-4 gap-2">
             <Link
