@@ -32,7 +32,7 @@ async function processFiles(files: File[], productId: string) {
 
   for (const file of files) {
     // Validate file object more safely
-    if (!file || typeof file !== 'object') {
+    if (!file || typeof file !== "object") {
       console.warn("Skipping invalid file object:", file);
       continue;
     }
@@ -48,7 +48,7 @@ async function processFiles(files: File[], productId: string) {
     }
 
     // Validate file type
-    if (!fileType.startsWith('image/')) {
+    if (!fileType.startsWith("image/")) {
       console.warn(`Skipping non-image file: ${fileName}`);
       continue;
     }
@@ -61,9 +61,9 @@ async function processFiles(files: File[], productId: string) {
 
     try {
       let buffer: Buffer;
-      
+
       // Multiple approaches to handle different file types
-      if (file && typeof (file as any).arrayBuffer === 'function') {
+      if (file && typeof (file as any).arrayBuffer === "function") {
         // Standard File object
         const arrayBuffer = await (file as any).arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
@@ -74,7 +74,7 @@ async function processFiles(files: File[], productId: string) {
       } else {
         console.warn(`Unsupported file type for: ${fileName}`, {
           constructor: (file as any)?.constructor?.name,
-          type: typeof file
+          type: typeof file,
         });
         continue;
       }
@@ -122,75 +122,86 @@ const normalizeImages = (raw: unknown): string[] => {
 /**
  * ✅ GET /api/products - FIXED VERSION
  */
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "100"))); // Increased default limit
-    const skip = (page - 1) * limit;
     const search = searchParams.get("search") || "";
+    const condition = searchParams.get("condition");
+    const stock = searchParams.get("stock");
+    const featured = searchParams.get("featured");
 
-    const where: Prisma.ProductWhereInput = search
-      ? { title: { contains: search, mode: "insensitive" } }
-      : {};
+    // Build where conditions
+    const whereConditions: any[] = [];
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        include: {
-          seller: true,
-          images: true,
-          category: true,
-          subcategory: true,
+    // Search condition
+    if (search) {
+      whereConditions.push({
+        OR: [
+          { title: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+        ],
+      });
+    }
+
+    // Condition filter
+    if (condition && condition !== "ALL") {
+      whereConditions.push({ condition: condition as any });
+    }
+
+    // Stock filter
+    if (stock && stock !== "ALL") {
+      switch (stock) {
+        case "IN_STOCK":
+          whereConditions.push({ stock: { gt: 10 } });
+          break;
+        case "LOW_STOCK":
+          whereConditions.push({ stock: { lt: 10, gt: 0 } });
+          break;
+        case "OUT_OF_STOCK":
+          whereConditions.push({ stock: 0 });
+          break;
+      }
+    }
+
+    // Featured filter
+    if (featured && featured !== "ALL") {
+      whereConditions.push({ isFeatured: featured === "FEATURED" });
+    }
+
+    const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
+
+    const products = await prisma.product.findMany({
+      where,
+      include: {
+        category: {
+          select: {
+            name: true,
+          },
         },
-        where,
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-      }),
-      prisma.product.count({ where }),
-    ]);
-
-    // Normalize images to return URLs
-    const normalized = products.map((p) => ({
-      id: p.id,
-      title: p.title,
-      description: p.description,
-      price: Number(p.price), // Ensure it's a number
-      condition: p.condition,
-      stock: p.stock,
-      isFeatured: p.isFeatured,
-      isUsed: p.isUsed,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
-      // Convert images to string URLs
-      images: (p.images as UploadedFile[]).map((f) => `/api/files/${f.id}`),
-      // Include related data if needed
-      category: p.category,
-      subcategory: p.subcategory,
-      seller: p.seller ? {
-        id: p.seller.id,
-        name: p.seller.name,
-        email: p.seller.email
-      } : null
-    }));
-
-    console.log(`✅ Returning ${normalized.length} products out of ${total} total`);
-
-    // Return in the structure your frontend expects
-    return NextResponse.json({
-      success: true,
-      products: normalized, // This is what your frontend looks for
-      total,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+        seller: {
+          select: {
+            name: true,
+          },
+        },
+        images: {
+          select: {
+            id: true,
+            name: true,
+          },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: "desc" },
     });
-  } catch (error) {
-    console.error("❌ Error fetching products:", error);
-    return NextResponse.json({ 
-      success: false,
-      error: "Failed to fetch products",
-      products: [] // Ensure products is always an array
-    }, { status: 500 });
+
+    return NextResponse.json(products);
+  } catch (error: any) {
+    console.error("Error fetching products:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch products" },
+      { status: 500 }
+    );
   }
 }
 /**
@@ -200,16 +211,19 @@ export async function POST(req: Request) {
   try {
     const token = extractTokenFromReq(req);
     const user = verifyToken(token);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const formData = await req.formData();
-    
+
     // Debug logging to see what we're receiving
     console.log("FormData entries received:");
     const entries: string[] = [];
     for (const [key, value] of formData.entries()) {
       if (value instanceof File) {
-        entries.push(`Key: ${key}, File: ${value.name}, Type: ${value.type}, Size: ${value.size}`);
+        entries.push(
+          `Key: ${key}, File: ${value.name}, Type: ${value.type}, Size: ${value.size}`
+        );
       } else {
         entries.push(`Key: ${key}, Value: ${value}`);
       }
@@ -230,7 +244,7 @@ export async function POST(req: Request) {
     // Get files safely
     const fileEntries = formData.getAll("files");
     const files: File[] = [];
-    
+
     for (const entry of fileEntries) {
       if (entry instanceof File) {
         files.push(entry);
@@ -243,26 +257,43 @@ export async function POST(req: Request) {
 
     // Validate required fields
     if (!title || !description) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
     }
 
     // ✅ Category validation or fallback
     if (categoryId) {
-      const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } });
+      const categoryExists = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
       if (!categoryExists) {
-        let fallback = await prisma.category.findFirst({ where: { name: "Uncategorized" } });
-        if (!fallback) fallback = await prisma.category.create({ data: { name: "Uncategorized" } });
+        let fallback = await prisma.category.findFirst({
+          where: { name: "Uncategorized" },
+        });
+        if (!fallback)
+          fallback = await prisma.category.create({
+            data: { name: "Uncategorized" },
+          });
         categoryId = fallback.id;
       }
     } else {
-      let fallback = await prisma.category.findFirst({ where: { name: "Uncategorized" } });
-      if (!fallback) fallback = await prisma.category.create({ data: { name: "Uncategorized" } });
+      let fallback = await prisma.category.findFirst({
+        where: { name: "Uncategorized" },
+      });
+      if (!fallback)
+        fallback = await prisma.category.create({
+          data: { name: "Uncategorized" },
+        });
       categoryId = fallback.id;
     }
 
     // ✅ Subcategory validation
     if (subcategoryId) {
-      const subcategoryExists = await prisma.subcategory.findUnique({ where: { id: subcategoryId } });
+      const subcategoryExists = await prisma.subcategory.findUnique({
+        where: { id: subcategoryId },
+      });
       if (!subcategoryExists) subcategoryId = null;
     }
 
@@ -306,7 +337,10 @@ export async function POST(req: Request) {
     });
 
     if (!productWithImages) {
-      return NextResponse.json({ error: "Product created but could not be retrieved" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Product created but could not be retrieved" },
+        { status: 500 }
+      );
     }
 
     const responseData = {
@@ -320,9 +354,9 @@ export async function POST(req: Request) {
     };
 
     return NextResponse.json(
-      { 
-        message: "Product created successfully", 
-        product: responseData 
+      {
+        message: "Product created successfully",
+        product: responseData,
       },
       { status: 201 }
     );
