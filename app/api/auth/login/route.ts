@@ -46,6 +46,7 @@ export async function POST(req: Request) {
         email: user.email,
         role: user.role,
       },
+      token,
     });
 
     res.headers.set("Set-Cookie", cookieHeader);

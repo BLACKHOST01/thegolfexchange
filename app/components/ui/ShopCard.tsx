@@ -27,15 +27,18 @@ export const ShopCard: React.FC<ShopCardProps> = ({
   highlighted = false,
 }) => {
   const { user } = useAuth();
-  const { addItem } = useCart(); // ✅ fixed: use addItem
+  const { addItem } = useCart();
 
   const handleAddToCart = () => {
     if (!user) {
       alert("⚠️ Please log in to add items to your cart.");
       return;
     }
-    addItem(id, 1); // ✅ use addItem instead of addToCart
+    addItem(id, 1);
   };
+
+  // Enhanced image validation
+  const isValidImage = image && image.trim() !== "";
 
   return (
     <motion.div
@@ -46,20 +49,30 @@ export const ShopCard: React.FC<ShopCardProps> = ({
         highlighted ? "border-blue-600" : "border-transparent"
       }`}
     >
-      {/* Product Image */}
-      {image && (
+      {/* Product Image with enhanced validation */}
+      {isValidImage ? (
         <div className="relative w-full h-52">
           <Image
             src={image}
-            alt={typeof title === "string" ? title : ""}
+            alt={typeof title === "string" ? title : "Product image"}
             fill
             className="object-cover"
             sizes="(max-width:768px) 100vw, 33vw"
+            onError={(e) => {
+              // Fallback if image fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
           />
+        </div>
+      ) : (
+        // Fallback when no valid image
+        <div className="relative w-full h-52 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+          <span className="text-gray-500 dark:text-gray-400">No Image</span>
         </div>
       )}
 
-      {/* Card Body */}
+      {/* Rest of the component remains the same */}
       <div className="p-5 flex flex-col items-center text-center space-y-3">
         <h3 className="text-lg font-semibold">{title}</h3>
         {condition && (

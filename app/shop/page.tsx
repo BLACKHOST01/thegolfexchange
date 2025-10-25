@@ -9,7 +9,7 @@ interface Product {
   description: string;
   price: number;
   condition: string;
-  images?: string[];
+  images?: any[]; // Change to any[] since the API might return non-strings
 }
 
 export default function ShopClient() {
@@ -40,6 +40,19 @@ export default function ShopClient() {
           { cache: "no-store" }
         );
         const data = await res.json();
+
+        // Debug: log what images look like
+        if (data.products && data.products.length > 0) {
+          console.log(
+            "API Images data:",
+            data.products.map((p: Product) => ({
+              id: p.id,
+              images: p.images,
+              imageTypes: p.images?.map((img) => typeof img),
+            }))
+          );
+        }
+
         setProducts(data.products);
         setTotalPages(data.totalPages);
       } catch (err) {
@@ -71,6 +84,35 @@ export default function ShopClient() {
     );
   };
 
+  // Robust helper function to get valid image URL
+  const getValidImage = (images?: any[]): string | undefined => {
+    if (!images || images.length === 0) return undefined;
+
+    const firstImage = images[0];
+
+    // Comprehensive validation for different data types
+    if (typeof firstImage === "string" && firstImage.trim() !== "") {
+      return firstImage;
+    }
+
+    // If it's an object with a url property (common in APIs)
+    if (firstImage && typeof firstImage === "object" && firstImage.url) {
+      return firstImage.url;
+    }
+
+    // If it's an object with a src property
+    if (firstImage && typeof firstImage === "object" && firstImage.src) {
+      return firstImage.src;
+    }
+
+    // Log unexpected types for debugging
+    if (firstImage && typeof firstImage !== "string") {
+      console.warn("Unexpected image type:", typeof firstImage, firstImage);
+    }
+
+    return undefined;
+  };
+
   return (
     <section className="py-20 px-4">
       {/* Search Input */}
@@ -91,10 +133,10 @@ export default function ShopClient() {
             <ShopCard
               key={p.id}
               id={p.id}
-              title={highlightText(p.title, debouncedSearch)} // JSX safe now
+              title={highlightText(p.title, debouncedSearch)}
               description={p.description}
               price={p.price}
-              image={p.images?.[0] ?? "/placeholder.png"}
+              image={getValidImage(p.images)}
               condition={p.condition}
             />
           ))
