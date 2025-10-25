@@ -17,17 +17,19 @@ export async function GET(
       where: { id },
       include: {
         seller: true,
+        images: true, // ✅ ADD THIS LINE - include images relation
         reviews: {
           include: { user: true },
           orderBy: { createdAt: "desc" },
         },
+        category: true, // ✅ Also include category if needed
+        subcategory: true, // ✅ And subcategory if needed
       },
     });
 
     if (!product)
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-    // Prisma already returns images as string[]
     return NextResponse.json(product);
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -61,7 +63,7 @@ export async function PUT(
       isUsed: data.isUsed ?? false,
       rating: data.rating ? Number(data.rating) : undefined,
       sellerId: data.sellerId,
-      images: Array.isArray(data.images) ? data.images : [], // ✅ directly assign
+      // Remove the images assignment here since it's handled by relations
     };
 
     if (data.categoryId) {
@@ -84,6 +86,7 @@ export async function PUT(
         subcategory: true,
         seller: true,
         reviews: true,
+        images: true, // ✅ Include images in the response
       },
     });
 
