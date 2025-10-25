@@ -1,15 +1,34 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
+
+// Validation schemas
+const updateUserSchema = z.object({
+  name: z.string().min(1, "Name is required").optional(),
+  email: z.string().email("Invalid email format").optional(),
+  password: z.string().min(6, "Password must be at least 6 characters").optional(),
+  phone: z.string().optional().nullable(),
+  avatar: z.string().url("Invalid avatar URL").optional().nullable(),
+  role: z.enum(["USER", "ADMIN"]).optional(),
+  isVerified: z.boolean().optional(),
+});
 
 // ✅ GET /api/users/[id]
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-
   try {
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       select: {
@@ -25,13 +44,20 @@ export async function GET(
       },
     });
 
-    if (!user)
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json(user);
   } catch (error: any) {
     console.error("Error fetching user:", error);
-    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch user" },
+      { status: 500 }
+    );
   }
 }
 
@@ -40,13 +66,64 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-
   try {
-    const data = await req.json();
+    const { id } = await params;
 
+    if (!id) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json();
+
+    // Validate input
+    const validationResult = updateUserSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: validationResult.error.issues[0].message },
+        { status: 400 }
+      );
+    }
+
+    const data = { ...validationResult.data };
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check for email uniqueness if email is being updated
+    if (data.email && data.email !== existingUser.email) {
+      const emailExists = await prisma.user.findUnique({
+        where: { email: data.email },
+      });
+
+      if (emailExists) {
+        return NextResponse.json(
+          { error: "Email already exists" },
+          { status: 409 }
+        );
+      }
+      data.email = data.email.toLowerCase().trim();
+    }
+
+    // Hash password if provided
     if (data.password) {
-      data.password = await bcrypt.hash(data.password, 10);
+      data.password = await bcrypt.hash(data.password, 12);
+    }
+
+    // Clean name if provided
+    if (data.name) {
+      data.name = data.name.trim();
     }
 
     const updatedUser = await prisma.user.update({
@@ -67,7 +144,26 @@ export async function PUT(
     return NextResponse.json(updatedUser);
   } catch (error: any) {
     console.error("Error updating user:", error);
-    return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
+
+    // Handle Prisma specific errors
+    if (error.code === "P2025") {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Email already exists" },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Failed to update user" },
+      { status: 500 }
+    );
   }
 }
 
@@ -76,13 +172,89 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-
   try {
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if user exists first
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if user has related records
+    const [cartItems, orders, ] = await Promise.all([
+      prisma.cart.findMany({
+        where: { userId: id },
+        select: { id: true }
+      }),
+      
+      
+      prisma.review.findMany({
+        where: { userId: id },
+        select: { id: true }
+      })
+    ]);
+
+    const hasRelatedRecords = cartItems.length > 0 || orders.length > 0 ;
+                             
+
+    if (hasRelatedRecords) {
+      return NextResponse.json(
+        { 
+          error: "Cannot delete user with existing records",
+          details: {
+            cartItems: cartItems.length,
+            orders: orders.length,
+          
+          }
+        },
+        { status: 409 }
+      );
+    }
+
     await prisma.user.delete({ where: { id } });
-    return NextResponse.json({ message: "User deleted successfully" });
+
+    return NextResponse.json(
+      { message: "User deleted successfully" },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error("Error deleting user:", error);
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+
+    if (error.code === "P2025") {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Handle foreign key constraints
+    if (error.code === "P2003") {
+      return NextResponse.json(
+        { 
+          error: "Cannot delete user with existing records",
+          suggestion: "Please delete all related cart items, orders, payments, and reviews first, or use the cascade delete option."
+        },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Failed to delete user" },
+      { status: 500 }
+    );
   }
 }
