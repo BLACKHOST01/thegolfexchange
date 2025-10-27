@@ -1,11 +1,13 @@
 "use client";
 
 import { useCart } from "@/app/context/CartContext";
+import { useAuth } from "@/app/context/AuthContext"; // Import useAuth
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function CheckoutPage() {
   const { cartItems, total, itemCount, addGuestOrder } = useCart();
+  const { user } = useAuth(); // Get user from AuthContext
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
@@ -16,7 +18,7 @@ export default function CheckoutPage() {
     street: "",
     city: "",
     state: "",
-    country: "United States", // Fixed typo: "United states" to "United States"
+    country: "United States",
     postalCode: "",
   });
 
@@ -53,7 +55,9 @@ export default function CheckoutPage() {
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Generate order ID and order number BEFORE creating the order
-      const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const orderId = `order_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
       const orderNumber = `TGE-${Date.now().toString().slice(-6)}`;
 
       // Convert cart items to order items matching Prisma structure
@@ -104,12 +108,58 @@ export default function CheckoutPage() {
         notes,
       };
 
+      // OPTIONAL: Try to save to backend if user is authenticated
+      if (user && user.id) {
+        try {
+          const backendOrderData = {
+            items: orderItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+            shippingAddress,
+            notes: notes.map((note) => ({
+              content: note.content,
+              type: note.type,
+            })),
+            isGuest: false,
+          };
+
+          const response = await fetch("/api/checkout", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": user.id,
+            },
+            body: JSON.stringify(backendOrderData),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log("Order saved to backend:", result);
+
+            // Update the order with backend data if needed
+            order.id = result.order.id;
+            order.orderNumber = result.order.orderNumber;
+          } else {
+            console.warn(
+              "Failed to save order to backend, using frontend only"
+            );
+          }
+        } catch (backendError) {
+          console.warn(
+            "Backend save failed, using frontend guest order:",
+            backendError
+          );
+          // Continue with frontend order - don't break the checkout flow
+        }
+      }
+
       // Add guest order - this will clear the cart and set currentOrder
       addGuestOrder(order);
 
       // Redirect to order confirmation page immediately using the known orderId
       router.push(`/order-confirmation/${orderId}`);
-      
     } catch (error) {
       console.error("Checkout failed:", error);
       alert("Checkout failed. Please try again.");

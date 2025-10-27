@@ -1,22 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    eslint: {
+  eslint: {
     // ✅ Don't fail the build on ESLint errors
     ignoreDuringBuilds: true,
   },
   images: {
+    domains: ["localhost"],
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "picsum.photos",
-      },
-      {
-        protocol: "https",
-        hostname: "placehold.co",
-      },
-      {
-        protocol: "https",
-        hostname: "loremflickr.com",
+        protocol: "http",
+        hostname: "localhost",
+        port: "3000",
+        pathname: "/api/images/**",
       },
     ],
   },

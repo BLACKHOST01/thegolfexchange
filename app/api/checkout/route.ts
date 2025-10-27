@@ -5,21 +5,29 @@ const prisma = new PrismaClient();
 
 /**
  * POST /api/checkout
- * Process checkout and create order
+ * Process checkout for both authenticated users and guests
  */
 export async function POST(req: Request) {
   try {
-    const userId = req.headers.get("x-user-id");
-    if (!userId) {
-      return NextResponse.json({ error: "Missing user id" }, { status: 401 });
-    }
-
-    const { items, provider, shippingAddress, notes } = await req.json();
+    const { 
+      items, 
+      shippingAddress, 
+      notes,
+      customerInfo, // Add customerInfo for guest orders
+      isGuest = true // Default to guest since frontend uses guest system
+    } = await req.json();
 
     // Validate request body
     if (!items || !Array.isArray(items)) {
       return NextResponse.json(
         { error: "Missing items array" },
+        { status: 400 }
+      );
+    }
+
+    if (!shippingAddress) {
+      return NextResponse.json(
+        { error: "Missing shipping address" },
         { status: 400 }
       );
     }
@@ -33,7 +41,6 @@ export async function POST(req: Request) {
         );
       }
       
-      // Validate quantity is positive
       if (item.quantity <= 0) {
         return NextResponse.json(
           { error: "Quantity must be greater than 0" },
@@ -42,108 +49,78 @@ export async function POST(req: Request) {
       }
     }
 
-    // Get user's cart with items and products
-    const cart = await prisma.cart.findUnique({
-      where: { userId },
-      include: {
-        items: {
-          include: { 
-            product: true 
-          }
-        }
-      }
-    });
-
-    if (!cart || cart.items.length === 0) {
-      return NextResponse.json(
-        { error: "Cart is empty" },
-        { status: 400 }
-      );
-    }
-
-    // Verify all requested items exist in cart and have valid product data
-    const cartItemsMap = new Map();
-    cart.items.forEach(item => {
-      cartItemsMap.set(item.productId, item);
-    });
-
-    const invalidCartItems = [];
-    const orderItemsData = [];
-
-    for (const requestedItem of items) {
-      const cartItem = cartItemsMap.get(requestedItem.productId);
-      
-      if (!cartItem) {
-        invalidCartItems.push(`Product ${requestedItem.productId} not found in cart`);
-        continue;
-      }
-
-      if (!cartItem.product) {
-        invalidCartItems.push(`Product data missing for ${requestedItem.productId}`);
-        continue;
-      }
-
-      if (cartItem.quantity !== requestedItem.quantity) {
-        invalidCartItems.push(`Quantity mismatch for product ${requestedItem.productId}`);
-        continue;
-      }
-
-      orderItemsData.push({
-        productId: cartItem.productId,
-        quantity: cartItem.quantity,
-        price: cartItem.product.price
-      });
-    }
-
-    if (invalidCartItems.length > 0) {
-      return NextResponse.json(
-        { error: `Cart validation failed: ${invalidCartItems.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    // Calculate total amount from actual cart items
-    const totalAmount = cart.items.reduce((total, item) => {
-      return total + (item.product.price * item.quantity);
+    // Calculate total amount from items
+    const totalAmount = items.reduce((total: number, item: any) => {
+      return total + (item.price * item.quantity);
     }, 0);
+
+    // Generate order number
+    const orderNumber = `TGE-${Date.now().toString().slice(-6)}`;
 
     // Create order data object
     const orderData: any = {
-      buyerId: userId,
+      orderNumber, // Add order number
       totalAmount,
-      status: OrderStatus.PENDING, // Using the enum
+      status: OrderStatus.PAID, // Use PAID since frontend marks as paid
       items: {
-        create: orderItemsData.map(item => ({
+        create: items.map((item: any) => ({
           productId: item.productId,
           quantity: item.quantity,
           price: item.price
         }))
+      },
+      shippingAddress: {
+        create: {
+          street: shippingAddress.street,
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          country: shippingAddress.country,
+          postalCode: shippingAddress.postalCode
+        }
       }
     };
 
-    // Add shipping address if provided
-    if (shippingAddress) {
-      orderData.shippingAddress = {
-        create: shippingAddress
-      };
+    // For authenticated users, add buyerId
+    const userId = req.headers.get("x-user-id");
+    if (userId) {
+      orderData.buyerId = userId;
+      
+      // Clear user's cart if they're authenticated
+      const cart = await prisma.cart.findUnique({
+        where: { userId },
+        include: { items: true }
+      });
+      
+      if (cart && cart.items.length > 0) {
+        await prisma.cartItem.deleteMany({
+          where: { cartId: cart.id }
+        });
+      }
     }
 
     // Add notes if provided
     if (notes && Array.isArray(notes)) {
       orderData.notes = {
-        create: notes.map((note: string) => ({
-          content: note
+        create: notes.map((note: any) => ({
+          content: note.content || note,
+          type: note.type || 'CUSTOMER'
         }))
       };
     }
 
-    // Create order using your schema
+    // Create order
     const order = await prisma.order.create({
       data: orderData,
       include: {
         items: {
           include: {
-            product: true
+            product: {
+              select: {
+                title: true,
+                images: true,
+                condition: true
+              }
+            }
           }
         },
         shippingAddress: true,
@@ -151,19 +128,18 @@ export async function POST(req: Request) {
       }
     });
 
-    // Clear the cart after successful order creation
-    await prisma.cartItem.deleteMany({
-      where: { cartId: cart.id }
-    });
-
     return NextResponse.json({
       message: "Order created successfully",
-      orderId: order.id,
-      totalAmount,
-      status: order.status,
-      items: order.items,
-      shippingAddress: order.shippingAddress,
-      notes: order.notes
+      order: {
+        id: order.id,
+        orderNumber: (order as any).orderNumber,
+        totalAmount: order.totalAmount,
+        status: order.status,
+        createdAt: order.createdAt,
+        items: order.items,
+        shippingAddress: order.shippingAddress,
+        notes: order.notes
+      }
     });
 
   } catch (err) {
@@ -177,13 +153,15 @@ export async function POST(req: Request) {
 
 /**
  * GET /api/checkout/orders
- * Get user's order history
+ * Get user's order history (for authenticated users)
  */
 export async function GET(req: Request) {
   try {
     const userId = req.headers.get("x-user-id");
+    
+    // If no user ID, return empty array (guest users use local storage)
     if (!userId) {
-      return NextResponse.json({ error: "Missing user id" }, { status: 401 });
+      return NextResponse.json({ orders: [] });
     }
 
     const { searchParams } = new URL(req.url);
@@ -199,7 +177,13 @@ export async function GET(req: Request) {
       include: {
         items: {
           include: {
-            product: true
+            product: {
+              select: {
+                title: true,
+                images: true,
+                condition: true
+              }
+            }
           }
         },
         shippingAddress: true,
@@ -227,10 +211,8 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const userId = req.headers.get("x-user-id");
-    if (!userId) {
-      return NextResponse.json({ error: "Missing user id" }, { status: 401 });
-    }
-
+    
+    // Allow updates without user ID for guest orders
     const { searchParams } = new URL(req.url);
     const orderId = searchParams.get('id');
     const { status } = await req.json();
@@ -243,16 +225,18 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    // Verify the order belongs to the user
-    const order = await prisma.order.findFirst({
-      where: { 
-        id: orderId,
-        buyerId: userId 
-      }
-    });
+    // If user ID is provided, verify the order belongs to the user
+    if (userId) {
+      const order = await prisma.order.findFirst({
+        where: { 
+          id: orderId,
+          buyerId: userId 
+        }
+      });
 
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      if (!order) {
+        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      }
     }
 
     const updatedOrder = await prisma.order.update({
@@ -261,7 +245,13 @@ export async function PATCH(req: Request) {
       include: {
         items: {
           include: {
-            product: true
+            product: {
+              select: {
+                title: true,
+                images: true,
+                condition: true
+              }
+            }
           }
         }
       }

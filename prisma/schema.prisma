@@ -111,6 +111,7 @@ model Order {
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  orderNumber String?     @unique // Add this line
 
   buyer   User   @relation(fields: [buyerId], references: [id])
   buyerId String

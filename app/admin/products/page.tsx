@@ -4,12 +4,12 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Pagination from "@/app/components/Pagination";
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  Edit, 
-  Trash2, 
+import {
+  Search,
+  Filter,
+  Plus,
+  Edit,
+  Trash2,
   Package,
   AlertTriangle,
   RefreshCw,
@@ -17,7 +17,7 @@ import {
   ChevronUp,
   ChevronDown,
   Check,
-  Eye
+  Eye,
 } from "lucide-react";
 
 interface Product {
@@ -76,7 +76,9 @@ export default function AdminProductsPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
   // Sorting
-  const [sortBy, setSortBy] = useState<"title" | "price" | "stock" | "createdAt">("createdAt");
+  const [sortBy, setSortBy] = useState<
+    "title" | "price" | "stock" | "createdAt"
+  >("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Pagination
@@ -91,7 +93,8 @@ export default function AdminProductsPage() {
 
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
-      if (conditionFilter !== "ALL") params.append("condition", conditionFilter);
+      if (conditionFilter !== "ALL")
+        params.append("condition", conditionFilter);
       if (stockFilter !== "ALL") params.append("stock", stockFilter);
       if (featuredFilter !== "ALL") params.append("featured", featuredFilter);
       params.append("sortBy", sortBy);
@@ -99,7 +102,9 @@ export default function AdminProductsPage() {
 
       const res = await fetch(`/api/products?${params}`);
       if (!res.ok) {
-        throw new Error(`Failed to fetch products: ${res.status} ${res.statusText}`);
+        throw new Error(
+          `Failed to fetch products: ${res.status} ${res.statusText}`
+        );
       }
 
       const data = await res.json();
@@ -112,7 +117,14 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, conditionFilter, stockFilter, featuredFilter, sortBy, sortOrder]);
+  }, [
+    debouncedSearch,
+    conditionFilter,
+    stockFilter,
+    featuredFilter,
+    sortBy,
+    sortOrder,
+  ]);
 
   useEffect(() => {
     fetchProducts();
@@ -120,7 +132,12 @@ export default function AdminProductsPage() {
 
   // Handle individual product delete
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this product? This action cannot be undone."
+      )
+    )
+      return;
 
     setDeletingId(id);
     try {
@@ -141,11 +158,16 @@ export default function AdminProductsPage() {
 
   // Bulk delete
   const handleBulkDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedProducts.length} products? This action cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to delete ${selectedProducts.length} products? This action cannot be undone.`
+      )
+    )
+      return;
 
     try {
       await Promise.all(
-        selectedProducts.map(id => 
+        selectedProducts.map((id) =>
           fetch(`/api/products/${id}`, { method: "DELETE" })
         )
       );
@@ -206,25 +228,36 @@ export default function AdminProductsPage() {
 
   // Export to CSV
   const handleExport = () => {
-    const headers = ['Title', 'Price', 'Stock', 'Condition', 'Featured', 'Category', 'Seller'];
-    const csvData = products.map(product => [
+    const headers = [
+      "Title",
+      "Price",
+      "Stock",
+      "Condition",
+      "Featured",
+      "Category",
+      "Seller",
+    ];
+    const csvData = products.map((product) => [
       `"${product.title.replace(/"/g, '""')}"`,
       product.price,
       product.stock,
       product.condition,
-      product.isFeatured ? 'Yes' : 'No',
-      product.category?.name || 'N/A',
-      product.seller?.name || 'N/A'
+      product.isFeatured ? "Yes" : "No",
+      product.category?.name || "N/A",
+      product.seller?.name || "N/A",
     ]);
 
-    const csv = [headers, ...csvData].map(row => row.join(',')).join('\n');
-    
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [headers, ...csvData].map((row) => row.join(",")).join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `products-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `products-${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -243,11 +276,13 @@ export default function AdminProductsPage() {
   // Calculate statistics
   const stats = useMemo(() => {
     const totalProducts = products.length;
-    const lowStockProducts = products.filter(p => p.stock < 10 && p.stock > 0).length;
-    const outOfStockProducts = products.filter(p => p.stock === 0).length;
-    const featuredProducts = products.filter(p => p.isFeatured).length;
-    const newProducts = products.filter(p => p.condition === "NEW").length;
-    const usedProducts = products.filter(p => p.condition === "USED").length;
+    const lowStockProducts = products.filter(
+      (p) => p.stock < 10 && p.stock > 0
+    ).length;
+    const outOfStockProducts = products.filter((p) => p.stock === 0).length;
+    const featuredProducts = products.filter((p) => p.isFeatured).length;
+    const newProducts = products.filter((p) => p.condition === "NEW").length;
+    const usedProducts = products.filter((p) => p.condition === "USED").length;
 
     return {
       totalProducts,
@@ -255,14 +290,14 @@ export default function AdminProductsPage() {
       outOfStockProducts,
       featuredProducts,
       newProducts,
-      usedProducts
+      usedProducts,
     };
   }, [products]);
 
   // Select/deselect all products on current page
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedProducts(currentProducts.map(p => p.id));
+      setSelectedProducts(currentProducts.map((p) => p.id));
     } else {
       setSelectedProducts([]);
     }
@@ -271,9 +306,9 @@ export default function AdminProductsPage() {
   // Toggle individual product selection
   const handleSelectProduct = (productId: string, checked: boolean) => {
     if (checked) {
-      setSelectedProducts(prev => [...prev, productId]);
+      setSelectedProducts((prev) => [...prev, productId]);
     } else {
-      setSelectedProducts(prev => prev.filter(id => id !== productId));
+      setSelectedProducts((prev) => prev.filter((id) => id !== productId));
     }
   };
 
@@ -301,14 +336,20 @@ export default function AdminProductsPage() {
         {/* Filters Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div
+              key={i}
+              className="h-12 bg-gray-200 rounded-lg animate-pulse"
+            ></div>
           ))}
         </div>
 
         {/* Stats Skeleton */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 bg-gray-200 rounded-xl animate-pulse"></div>
+            <div
+              key={i}
+              className="h-20 bg-gray-200 rounded-xl animate-pulse"
+            ></div>
           ))}
         </div>
 
@@ -326,7 +367,9 @@ export default function AdminProductsPage() {
       <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-7xl mx-auto text-center">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
           <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-red-800 mb-2">Error Loading Products</h3>
+          <h3 className="text-lg font-medium text-red-800 mb-2">
+            Error Loading Products
+          </h3>
           <p className="text-red-700 mb-4">{error}</p>
           <button
             onClick={fetchProducts}
@@ -358,7 +401,7 @@ export default function AdminProductsPage() {
             disabled={loading}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Refreshing..." : "Refresh"}
           </button>
 
@@ -436,7 +479,9 @@ export default function AdminProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalProducts}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.totalProducts}
+              </p>
             </div>
             <Package className="w-8 h-8 text-blue-600" />
           </div>
@@ -446,7 +491,9 @@ export default function AdminProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">New</p>
-              <p className="text-2xl font-bold text-green-600">{stats.newProducts}</p>
+              <p className="text-2xl font-bold text-green-600">
+                {stats.newProducts}
+              </p>
             </div>
             <Filter className="w-8 h-8 text-green-600" />
           </div>
@@ -456,7 +503,9 @@ export default function AdminProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Used</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.usedProducts}</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {stats.usedProducts}
+              </p>
             </div>
             <Filter className="w-8 h-8 text-blue-600" />
           </div>
@@ -466,7 +515,9 @@ export default function AdminProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Featured</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.featuredProducts}</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {stats.featuredProducts}
+              </p>
             </div>
             <Filter className="w-8 h-8 text-purple-600" />
           </div>
@@ -476,7 +527,9 @@ export default function AdminProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Low Stock</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.lowStockProducts}</p>
+              <p className="text-2xl font-bold text-yellow-600">
+                {stats.lowStockProducts}
+              </p>
             </div>
             <AlertTriangle className="w-8 h-8 text-yellow-600" />
           </div>
@@ -486,7 +539,9 @@ export default function AdminProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-600">{stats.outOfStockProducts}</p>
+              <p className="text-2xl font-bold text-red-600">
+                {stats.outOfStockProducts}
+              </p>
             </div>
             <AlertTriangle className="w-8 h-8 text-red-600" />
           </div>
@@ -499,7 +554,8 @@ export default function AdminProductsPage() {
           <div className="flex items-center gap-3">
             <Check className="w-5 h-5 text-blue-600" />
             <span className="text-blue-800 font-medium">
-              {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected
+              {selectedProducts.length} product
+              {selectedProducts.length !== 1 ? "s" : ""} selected
             </span>
           </div>
           <button
@@ -518,10 +574,12 @@ export default function AdminProductsPage() {
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">
-              {debouncedSearch || conditionFilter !== "ALL" || stockFilter !== "ALL" || featuredFilter !== "ALL"
+              {debouncedSearch ||
+              conditionFilter !== "ALL" ||
+              stockFilter !== "ALL" ||
+              featuredFilter !== "ALL"
                 ? "No products match your filters"
-                : "No products found"
-              }
+                : "No products found"}
             </p>
             <Link
               href="/admin/products/new"
@@ -540,42 +598,54 @@ export default function AdminProductsPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
                       <input
                         type="checkbox"
-                        checked={selectedProducts.length === currentProducts.length && currentProducts.length > 0}
+                        checked={
+                          selectedProducts.length === currentProducts.length &&
+                          currentProducts.length > 0
+                        }
                         onChange={(e) => handleSelectAll(e.target.checked)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th 
+                    <th
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                       onClick={() => handleSort("title")}
                     >
                       <div className="flex items-center gap-1">
                         Product
-                        {sortBy === "title" && (
-                          sortOrder === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                        )}
+                        {sortBy === "title" &&
+                          (sortOrder === "asc" ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          ))}
                       </div>
                     </th>
-                    <th 
+                    <th
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                       onClick={() => handleSort("price")}
                     >
                       <div className="flex items-center gap-1">
                         Price
-                        {sortBy === "price" && (
-                          sortOrder === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                        )}
+                        {sortBy === "price" &&
+                          (sortOrder === "asc" ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          ))}
                       </div>
                     </th>
-                    <th 
+                    <th
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                       onClick={() => handleSort("stock")}
                     >
                       <div className="flex items-center gap-1">
                         Stock
-                        {sortBy === "stock" && (
-                          sortOrder === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                        )}
+                        {sortBy === "stock" &&
+                          (sortOrder === "asc" ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          ))}
                       </div>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -608,7 +678,7 @@ export default function AdminProductsPage() {
                 </tbody>
               </table>
             </div>
-            
+
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="border-t border-gray-200">
@@ -661,8 +731,8 @@ const ProductRow = React.memo(function ProductRow({
   };
 
   const getConditionColor = (condition: string) => {
-    return condition === "NEW" 
-      ? "text-green-600 bg-green-100" 
+    return condition === "NEW"
+      ? "text-green-600 bg-green-100"
       : "text-blue-600 bg-blue-100";
   };
 
@@ -678,7 +748,7 @@ const ProductRow = React.memo(function ProductRow({
   };
 
   const handleStockKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       if (stockValue !== product.stock) {
         onStockUpdate(product.id, stockValue);
       }
@@ -700,16 +770,23 @@ const ProductRow = React.memo(function ProductRow({
       {/* Product Info */}
       <td className="px-4 py-4">
         <div className="flex items-center gap-3">
+          {/* // In the ProductRow component, replace the image section with: */}
           <div className="flex-shrink-0 w-12 h-12 bg-gray-200 rounded-lg overflow-hidden">
-            {product.images.length > 0 && !imageError ? (
-              <Image
+            {product.images.length > 0 ? (
+              <img
                 src={`/api/images/${product.images[0].id}`}
                 alt={product.title}
+                className="w-full h-full object-cover"
                 width={48}
                 height={48}
-                className="w-full h-full object-cover"
-                onError={() => setImageError(true)}
-                priority={currentPage === 1 && index < 3}
+                // onError={() => setImageError(true)}
+                // unoptimized // Since we're serving from our own API
+                onError={(e) => {
+                  e.currentTarget.src =
+                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiAxNkgyMFYyNkgxMlYxNloiIGZpbGw9IiM5Q0EwQUIiLz4KPHBhdGggZD0iTTI4IDE2SDM2VjI2SDI4VjE2WiIgZmlsbD0iIzlDQTBBQiIvPgo8cGF0aCBkPSJNMTIgMjhIMjBWMzhIMTJWMjhaIiBmaWxsPSIjOUNBMEFCIi8+CjxwYXRoIGQ9Ik0yOCAyOEgzNlYzOEgyOFYyOFoiIGZpbGw9IiM5Q0EwQUIiLz4KPC9zdmc+Cg==";
+                  setImageError(true);
+                }}
+                loading="lazy"
               />
             ) : (
               <div className="w-full h-full bg-gray-300 flex items-center justify-center">
@@ -749,9 +826,11 @@ const ProductRow = React.memo(function ProductRow({
             onKeyPress={handleStockKeyPress}
             disabled={updatingStockId === product.id}
             className={`w-20 px-2 py-1 border rounded text-xs font-medium transition-colors ${
-              product.stock === 0 ? 'border-red-300 bg-red-50' : 
-              product.stock < 10 ? 'border-yellow-300 bg-yellow-50' : 
-              'border-green-300 bg-green-50'
+              product.stock === 0
+                ? "border-red-300 bg-red-50"
+                : product.stock < 10
+                ? "border-yellow-300 bg-yellow-50"
+                : "border-green-300 bg-green-50"
             } disabled:opacity-50`}
             min="0"
           />
@@ -763,7 +842,11 @@ const ProductRow = React.memo(function ProductRow({
 
       {/* Condition */}
       <td className="px-4 py-4">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getConditionColor(product.condition)}`}>
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getConditionColor(
+            product.condition
+          )}`}
+        >
           {product.condition}
         </span>
       </td>
@@ -801,7 +884,7 @@ const ProductRow = React.memo(function ProductRow({
           >
             <Edit className="w-4 h-4" />
           </Link>
-          
+
           <button
             onClick={() => onDelete(product.id)}
             disabled={deletingId === product.id}

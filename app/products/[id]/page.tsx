@@ -43,7 +43,7 @@ type Product = {
   category?: Category;
   subcategory?: Subcategory;
   seller: Seller;
-  reviews: Review[];
+  reviews?: Review[]; // ✅ Make reviews optional
   rating: number;
   isFeatured: boolean;
   createdAt: string;
@@ -58,8 +58,8 @@ export default function ProductPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { addToCart } = useCart(); // ✅ Fixed: Use addToCart instead of addItem
-  const [addingToCart, setAddingToCart] = useState(false); // ✅ Local loading state for cart
+  const { addToCart } = useCart();
+  const [addingToCart, setAddingToCart] = useState(false);
 
   // ✅ Fetch product by ID
   useEffect(() => {
@@ -71,7 +71,16 @@ export default function ProductPage() {
         const res = await fetch(`/api/products/${id}`);
         if (!res.ok) throw new Error("Failed to fetch product");
         const data = await res.json();
-        setProduct(data);
+        
+        console.log("Product data received:", data); // Debug log
+        
+        // ✅ Ensure reviews is always an array
+        const productWithSafeReviews = {
+          ...data,
+          reviews: data.reviews || [] // Default to empty array if undefined
+        };
+        
+        setProduct(productWithSafeReviews);
       } catch (err: any) {
         console.error(err);
         setError(err.message || "Failed to load product");
@@ -104,37 +113,36 @@ export default function ProductPage() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [isLightboxOpen, product]);
 
-  // Get image URL - FIXED: Use the API route we created
+  // Get image URL
   const getImageUrl = (image: UploadedFile) => {
     return `/api/images/${image.id}`;
   };
 
-  // Calculate average rating
-  const averageRating = product?.reviews?.length 
-    ? product.reviews.reduce((acc, review) => acc + review.rating, 0) / product.reviews.length
+  // ✅ Safe calculation of average rating
+  const reviews = product?.reviews || [];
+  const averageRating = reviews.length > 0 
+    ? reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length
     : 0;
 
-  // ✅ Fixed: Updated handleAddToCart to use addToCart from CartContext
+  // ✅ Fixed: handleAddToCart function
   async function handleAddToCart() {
     if (!product) return;
     
     setAddingToCart(true);
     try {
-      // Prepare product data for cart
       const cartProduct = {
         id: product.id,
         title: product.title,
         price: product.price,
         images: product.images ? product.images.map(img => getImageUrl(img)) : [],
         stock: product.stock,
-        name: product.title, // Map title to name for CartItem compatibility
-        condition: product.condition, // Include condition
-        productId: product.id, // Include productId
+        name: product.title,
+        condition: product.condition,
+        productId: product.id,
       };
 
       addToCart(cartProduct, qty);
       
-      // Show success message
       alert(`Added ${qty} ${qty === 1 ? 'item' : 'items'} of "${product.title}" to cart`);
     } catch (err) {
       console.error("Error adding to cart:", err);
@@ -330,13 +338,18 @@ export default function ProductPage() {
             
             <h1 className="text-3xl font-bold text-gray-900">{product.title}</h1>
             
-            {/* Rating */}
-            {product.reviews.length > 0 && (
+            {/* ✅ FIXED: Safe review check */}
+            {reviews.length > 0 ? (
               <div className="flex items-center gap-4 mt-2">
                 {renderStars(averageRating)}
                 <span className="text-sm text-gray-500">
-                  {product.reviews.length} review{product.reviews.length !== 1 ? 's' : ''}
+                  {reviews.length} review{reviews.length !== 1 ? 's' : ''}
                 </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4 mt-2">
+                {renderStars(0)}
+                <span className="text-sm text-gray-500">No reviews yet</span>
               </div>
             )}
           </div>
@@ -471,22 +484,24 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* ✅ Reviews Section */}
+      {/* ✅ Fixed: Reviews Section with safe checks */}
       <div className="mt-12 border-t pt-8">
-        <h2 className="text-2xl font-bold mb-6">Customer Reviews</h2>
+        <h2 className="text-2xl font-bold mb-6">
+          Customer Reviews {reviews.length > 0 && `(${reviews.length})`}
+        </h2>
         
-        {product.reviews.length > 0 ? (
+        {reviews.length > 0 ? (
           <div className="space-y-6">
-            {product.reviews.map((review) => (
+            {reviews.map((review) => (
               <div key={review.id} className="border-b pb-6 last:border-b-0">
                 <div className="flex items-center gap-4 mb-2">
                   <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                     <span className="font-medium text-gray-700">
-                      {review.user.name.charAt(0).toUpperCase()}
+                      {review.user?.name?.charAt(0).toUpperCase() || 'U'}
                     </span>
                   </div>
                   <div>
-                    <p className="font-medium">{review.user.name}</p>
+                    <p className="font-medium">{review.user?.name || 'Anonymous'}</p>
                     <div className="flex items-center gap-2">
                       {renderStars(review.rating)}
                       <span className="text-sm text-gray-500">

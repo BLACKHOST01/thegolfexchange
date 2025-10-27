@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import Pagination from "@/app/components/Pagination";
 
 interface Order {
   id: string;
@@ -15,12 +14,21 @@ interface Order {
     id: string;
     name: string;
     email: string;
+    phone?: string;
   };
   items: OrderItem[];
   transaction?: {
     id: string;
     provider: string;
     status: string;
+  };
+  shippingAddress?: {
+    id: string;
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
   };
 }
 
@@ -85,6 +93,41 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// Simple Pagination Component
+function Pagination({
+  currentPage,
+  totalPages,
+  onPrev,
+  onNext,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex justify-between items-center mt-6">
+      <button
+        onClick={onPrev}
+        disabled={currentPage === 1}
+        className="px-4 py-2 bg-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-300 transition"
+      >
+        Previous
+      </button>
+      <span className="text-sm text-gray-600">
+        Page {currentPage} of {totalPages}
+      </span>
+      <button
+        onClick={onNext}
+        disabled={currentPage === totalPages}
+        className="px-4 py-2 bg-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-300 transition"
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,12 +152,16 @@ export default function AdminOrdersPage() {
       if (statusFilter !== "ALL") params.append("status", statusFilter);
       
       const res = await fetch(`/api/orders?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch orders");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to fetch orders");
+      }
       const data = await res.json();
-      setOrders(Array.isArray(data) ? data : data.orders || []);
+      setOrders(Array.isArray(data) ? data : []);
       setCurrentPage(1); // Reset to first page when filters change
     } catch (err: any) {
       setError(err.message);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -140,7 +187,12 @@ export default function AdminOrdersPage() {
         throw new Error(errorData.error || "Failed to update order");
       }
 
-      fetchOrders(); // Refresh orders
+      // Update local state instead of refetching all orders
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
     } catch (err: any) {
       console.error("Update error:", err);
       alert(`Failed to update order: ${err.message}`);
@@ -215,7 +267,7 @@ export default function AdminOrdersPage() {
           <div className="flex-1">
             <input
               type="text"
-              placeholder="Search orders by customer name or email..."
+              placeholder="Search orders by customer name, email, or product..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -270,7 +322,7 @@ export default function AdminOrdersPage() {
         <div className="flex-1">
           <input
             type="text"
-            placeholder="Search orders by customer name or email..."
+            placeholder="Search orders by customer name, email, or product..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
