@@ -9,6 +9,7 @@ interface Product {
   description: string;
   price: number;
   condition: string;
+  stock: number;
   images?: Array<{
     id: string;
     name: string;
@@ -44,13 +45,13 @@ export default function ShopClient() {
             debouncedSearch
           )}`
         );
-        
+
         if (!res.ok) {
           throw new Error("Failed to fetch products");
         }
-        
+
         const data = await res.json();
-        
+
         // Handle different response structures
         let productsArray: Product[] = [];
         if (Array.isArray(data)) {
@@ -58,7 +59,7 @@ export default function ShopClient() {
         } else if (data.products && Array.isArray(data.products)) {
           productsArray = data.products;
         }
-        
+
         setProducts(productsArray);
         setTotalPages(data.totalPages || 1);
       } catch (err) {
@@ -68,7 +69,7 @@ export default function ShopClient() {
         setLoading(false);
       }
     };
-    
+
     fetchProducts();
   }, [debouncedSearch, page]);
 
@@ -96,7 +97,10 @@ export default function ShopClient() {
         </div>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="animate-pulse bg-white p-4 rounded-lg shadow">
+            <div
+              key={i}
+              className="animate-pulse bg-white p-4 rounded-lg shadow"
+            >
               <div className="bg-gray-200 h-48 rounded-lg mb-4"></div>
               <div className="bg-gray-200 h-4 rounded w-3/4 mb-2"></div>
               <div className="bg-gray-200 h-4 rounded w-1/2 mb-2"></div>
@@ -131,19 +135,34 @@ export default function ShopClient() {
               title={product.title}
               description={product.description}
               price={product.price}
+              stock={product.stock}
               image={getValidImage(product.images)}
-              condition={product.condition}
+              condition={product.condition as "NEW" | "USED"}
+              sellerName="ProGolfShop"
+              category="Drivers"
             />
           ))
         ) : (
           <div className="text-center col-span-full py-12">
             <div className="text-gray-400 mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              <svg
+                className="w-16 h-16 mx-auto"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                />
               </svg>
             </div>
             <p className="text-gray-500 text-lg mb-2">
-              {debouncedSearch ? `No products found for "${debouncedSearch}"` : "No products available"}
+              {debouncedSearch
+                ? `No products found for "${debouncedSearch}"`
+                : "No products available"}
             </p>
             {debouncedSearch && (
               <button

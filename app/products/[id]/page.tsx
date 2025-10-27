@@ -39,7 +39,7 @@ type Product = {
   price: number;
   images?: UploadedFile[];
   stock: number;
-  condition: string;
+  condition: "NEW" | "USED";
   category?: Category;
   subcategory?: Subcategory;
   seller: Seller;
@@ -58,7 +58,8 @@ export default function ProductPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { addItem, loading: cartLoading } = useCart();
+  const { addToCart } = useCart(); // ✅ Fixed: Use addToCart instead of addItem
+  const [addingToCart, setAddingToCart] = useState(false); // ✅ Local loading state for cart
 
   // ✅ Fetch product by ID
   useEffect(() => {
@@ -113,20 +114,33 @@ export default function ProductPage() {
     ? product.reviews.reduce((acc, review) => acc + review.rating, 0) / product.reviews.length
     : 0;
 
+  // ✅ Fixed: Updated handleAddToCart to use addToCart from CartContext
   async function handleAddToCart() {
     if (!product) return;
     
-    if (!user) {
-      alert("Please log in to add items to your cart");
-      return;
-    }
-
+    setAddingToCart(true);
     try {
-      await addItem(product.id, qty);
+      // Prepare product data for cart
+      const cartProduct = {
+        id: product.id,
+        title: product.title,
+        price: product.price,
+        images: product.images ? product.images.map(img => getImageUrl(img)) : [],
+        stock: product.stock,
+        name: product.title, // Map title to name for CartItem compatibility
+        condition: product.condition, // Include condition
+        productId: product.id, // Include productId
+      };
+
+      addToCart(cartProduct, qty);
+      
+      // Show success message
       alert(`Added ${qty} ${qty === 1 ? 'item' : 'items'} of "${product.title}" to cart`);
     } catch (err) {
-      console.error(err);
+      console.error("Error adding to cart:", err);
       alert("Error adding to cart");
+    } finally {
+      setAddingToCart(false);
     }
   }
 
@@ -305,7 +319,11 @@ export default function ProductPage() {
                   Featured
                 </span>
               )}
-              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded uppercase">
+              <span className={`text-xs font-medium px-2 py-1 rounded uppercase ${
+                product.condition === "NEW" 
+                  ? "bg-green-100 text-green-800" 
+                  : "bg-blue-100 text-blue-800"
+              }`}>
                 {product.condition}
               </span>
             </div>
@@ -326,11 +344,11 @@ export default function ProductPage() {
           {/* Price */}
           <div className="flex items-baseline gap-2">
             <span className="text-4xl font-bold text-green-600">
-              ${product.price.toLocaleString()}
+              ${product.price.toFixed(2)}
             </span>
             {product.condition === "USED" && (
               <span className="text-sm text-gray-500 line-through">
-                ${(product.price * 1.3).toLocaleString()}
+                ${(product.price * 1.3).toFixed(2)}
               </span>
             )}
           </div>
@@ -376,7 +394,7 @@ export default function ProductPage() {
                 <button
                   onClick={() => setQty(Math.max(1, qty - 1))}
                   disabled={qty <= 1}
-                  className="px-3 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   -
                 </button>
@@ -389,12 +407,12 @@ export default function ProductPage() {
                     const value = Math.max(1, Math.min(product.stock, Number(e.target.value)));
                     setQty(value);
                   }}
-                  className="w-16 text-center border-x py-2 focus:outline-none"
+                  className="w-16 text-center border-x py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   onClick={() => setQty(Math.min(product.stock, qty + 1))}
                   disabled={qty >= product.stock}
-                  className="px-3 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   +
                 </button>
@@ -403,24 +421,20 @@ export default function ProductPage() {
 
             <button
               onClick={handleAddToCart}
-              disabled={cartLoading || product.stock === 0 || !user}
+              disabled={addingToCart || product.stock === 0}
               className={`w-full py-3 px-6 rounded-lg font-semibold transition-all ${
                 product.stock === 0
                   ? "bg-gray-400 cursor-not-allowed text-white"
-                  : !user
-                  ? "bg-gray-400 cursor-not-allowed text-white"
-                  : cartLoading
+                  : addingToCart
                   ? "bg-gray-600 cursor-not-allowed text-white"
                   : "bg-yellow-500 hover:bg-yellow-600 text-white shadow-lg hover:shadow-xl"
               }`}
             >
               {product.stock === 0
                 ? "Out of Stock"
-                : !user
-                ? "Login to Purchase"
-                : cartLoading
+                : addingToCart
                 ? "Adding to Cart..."
-                : `Add to Cart - $${(product.price * qty).toLocaleString()}`}
+                : `Add to Cart - $${(product.price * qty).toFixed(2)}`}
             </button>
           </div>
 

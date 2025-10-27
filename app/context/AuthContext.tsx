@@ -69,26 +69,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("userUpdated", handleCustomUserUpdate as EventListener);
+    window.addEventListener(
+      "userUpdated",
+      handleCustomUserUpdate as EventListener
+    );
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("userUpdated", handleCustomUserUpdate as EventListener);
+      window.removeEventListener(
+        "userUpdated",
+        handleCustomUserUpdate as EventListener
+      );
     };
   }, []);
 
-  const normalizeUser = (data: any): User => ({
-    id: data.user?.id || data.id,
-    name: data.user?.name || data.name,
-    email: data.user?.email || data.email,
-    role: (data.user?.role || data.role)?.toUpperCase() as "ADMIN" | "USER",
-    token: data.token || data.user?.token,
-    phone: data.user?.phone || data.phone,
-    avatar: data.user?.avatar || data.avatar,
-    isVerified: data.user?.isVerified || data.isVerified,
-    createdAt: data.user?.createdAt || data.createdAt,
-    updatedAt: data.user?.updatedAt || data.updatedAt,
-  });
+  const normalizeUser = (data: any): User => {
+    console.log("Raw data for normalization:", data);
+
+    // Handle different response structures
+    const userData = data.user || data;
+    const token =
+      data.token || data.accessToken || data.access_token || userData.token;
+
+    if (!token) {
+      console.error("No token found in response:", data);
+      throw new Error("Authentication token missing");
+    }
+
+    return {
+      id: userData.id,
+      name: userData.name,
+      email: userData.email,
+      role: (userData.role || "USER")?.toUpperCase() as "ADMIN" | "USER",
+      token: token,
+      phone: userData.phone,
+      avatar: userData.avatar,
+      isVerified: userData.isVerified,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt,
+    };
+  };
 
   const login = async (email: string, password: string) => {
     const res = await fetch("/api/auth/login", {
@@ -98,9 +118,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     const data = await res.json();
+    console.log("Login API response:", data); // Add this line
+
     if (!res.ok) throw new Error(data.error || "Login failed");
 
     const normalizedUser = normalizeUser(data);
+    console.log("Normalized user:", normalizedUser); // Add this line
 
     setUser(normalizedUser);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
@@ -132,22 +155,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
     localStorage.removeItem("user");
     // Dispatch event to sync across tabs
-    window.dispatchEvent(new StorageEvent("storage", { key: "user", newValue: null }));
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "user", newValue: null })
+    );
     router.push("/login");
   };
 
   const updateUser = (userData: Partial<User>) => {
     if (!user) return;
-    
+
     const updatedUser = { ...user, ...userData };
     setUser(updatedUser);
     localStorage.setItem("user", JSON.stringify(updatedUser));
     // Dispatch custom event for same-tab sync
-    window.dispatchEvent(new CustomEvent("userUpdated", { detail: { user: updatedUser } }));
+    window.dispatchEvent(
+      new CustomEvent("userUpdated", { detail: { user: updatedUser } })
+    );
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, signup, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

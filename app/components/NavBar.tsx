@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -30,6 +36,7 @@ const menuItems: MenuItem[] = [
   { path: "/tournaments", label: "Tournaments" },
   { path: "/contact", label: "Contact" },
   { path: "/blog", label: "Blog" },
+  {path: "/profile", label: "profile" },
 ];
 
 const NavBar: React.FC = () => {
@@ -45,8 +52,8 @@ const NavBar: React.FC = () => {
   const { user, logout } = useAuth();
 
   // Memoized cart quantity calculation
-  const totalQty = useMemo(() => 
-    cartItems.reduce((sum, item) => sum + item.quantity, 0), 
+  const totalQty = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
     [cartItems]
   );
 
@@ -57,7 +64,7 @@ const NavBar: React.FC = () => {
         const res = await fetch("/api/cart", {
           headers: { "x-user-id": user?.id || "demo-user-id" }, // Use actual user ID when available
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           setCartItems(data?.items ?? []);
@@ -71,12 +78,15 @@ const NavBar: React.FC = () => {
   }, [user?.id]); // Re-fetch when user changes
 
   // Event handlers
-  const handleCartKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      router.push("/cart");
-    }
-  }, [router]);
+  const handleCartKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>): void => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        router.push("/cart");
+      }
+    },
+    [router]
+  );
 
   const handleCartClick = useCallback((): void => {
     router.push("/cart");
@@ -87,7 +97,7 @@ const NavBar: React.FC = () => {
   }, []);
 
   const toggleMobileMenu = useCallback((): void => {
-    setIsMobileMenuOpen(prev => !prev);
+    setIsMobileMenuOpen((prev) => !prev);
   }, []);
 
   // Close mobile menu on outside click or ESC
@@ -129,37 +139,45 @@ const NavBar: React.FC = () => {
   }, [isMobileMenuOpen]);
 
   // Keyboard navigation in mobile menu
-  const handleMenuKeyDown = useCallback((event: React.KeyboardEvent): void => {
-    const currentIndex = menuItemsRef.current.findIndex(
-      (el) => el === document.activeElement
-    );
+  const handleMenuKeyDown = useCallback(
+    (event: React.KeyboardEvent): void => {
+      const currentIndex = menuItemsRef.current.findIndex(
+        (el) => el === document.activeElement
+      );
 
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        const nextIndex = (currentIndex + 1) % menuItemsRef.current.length;
-        menuItemsRef.current[nextIndex]?.focus();
-        break;
-      
-      case "ArrowUp":
-        event.preventDefault();
-        const prevIndex = (currentIndex - 1 + menuItemsRef.current.length) % menuItemsRef.current.length;
-        menuItemsRef.current[prevIndex]?.focus();
-        break;
-      
-      case "Escape":
-        closeMobileMenu();
-        break;
-      
-      default:
-        break;
-    }
-  }, [closeMobileMenu]);
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault();
+          const nextIndex = (currentIndex + 1) % menuItemsRef.current.length;
+          menuItemsRef.current[nextIndex]?.focus();
+          break;
+
+        case "ArrowUp":
+          event.preventDefault();
+          const prevIndex =
+            (currentIndex - 1 + menuItemsRef.current.length) %
+            menuItemsRef.current.length;
+          menuItemsRef.current[prevIndex]?.focus();
+          break;
+
+        case "Escape":
+          closeMobileMenu();
+          break;
+
+        default:
+          break;
+      }
+    },
+    [closeMobileMenu]
+  );
 
   const isActive = (path: string): boolean => pathname === path;
 
   return (
-    <nav className="bg-white shadow-sm fixed w-full z-50" aria-label="Main navigation">
+    <nav
+      className="bg-white shadow-sm fixed w-full z-50"
+      aria-label="Main navigation"
+    >
       {/* Skip link */}
       <a
         href="#main-content"
@@ -176,17 +194,22 @@ const NavBar: React.FC = () => {
             className="flex items-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
             aria-label="Home page"
           >
+            {/* // In your NavBar component - update the Image component */}
             <Image
               src={golfball}
-              alt="Company Logo"
-              width={40}
-              height={40}
-              className={`rounded-full transition-opacity duration-300 ${
+              alt="Logo"
+              width={40} // Reduced from 102 for better performance
+              height={40} // Make sure height matches width for square images
+              className={`rounded-full transition-opacity ${
                 isLogoLoaded ? "opacity-100" : "opacity-0"
               }`}
+              style={{ width: "auto", height: "auto" }} // Add this to maintain aspect ratio
               onLoad={() => setIsLogoLoaded(true)}
-              onError={() => setIsLogoLoaded(true)}
-              priority
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                setIsLogoLoaded(true);
+              }}
+              priority // Add this for above-the-fold images
             />
             {!isLogoLoaded && (
               <div className="w-10 h-10 bg-gray-200 animate-pulse rounded-full" />
@@ -268,7 +291,11 @@ const NavBar: React.FC = () => {
               aria-controls="mobile-menu"
               aria-label="Toggle navigation menu"
             >
-              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </button>
           </div>
         </div>
@@ -290,7 +317,10 @@ const NavBar: React.FC = () => {
             <h2 className="text-lg font-bold text-gray-800">Menu</h2>
           </div>
 
-          <nav className="flex-1 flex flex-col p-4 space-y-1" aria-label="Mobile navigation">
+          <nav
+            className="flex-1 flex flex-col p-4 space-y-1"
+            aria-label="Mobile navigation"
+          >
             {menuItems.map((item, index) => (
               <Link
                 key={item.path}
@@ -315,7 +345,8 @@ const NavBar: React.FC = () => {
               {user ? (
                 <>
                   <div className="px-4 py-2 text-sm text-gray-600">
-                    Signed in as <span className="font-medium">{user.name}</span>
+                    Signed in as{" "}
+                    <span className="font-medium">{user.name}</span>
                   </div>
                   {user.role === "ADMIN" && (
                     <Link

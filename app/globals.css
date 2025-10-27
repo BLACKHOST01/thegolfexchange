@@ -1,6 +1,27 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+
+/* Custom scrollbar for mobile menu */
+body.overflow-hidden {
+  overflow: hidden;
+}
+
+/* Focus styles for accessibility */
+.focus\:ring-2:focus {
+  ring-width: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+
+
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
