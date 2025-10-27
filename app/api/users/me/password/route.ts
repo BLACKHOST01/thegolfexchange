@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hash, compare } from "bcryptjs";
 import { withAuth, AuthRequest } from "@/lib/jwt-middleware";
-import { comparePassword, hashPassword } from "@/lib/password";
 
+// PUT /api/users/me/password - Change password
 export const PUT = withAuth(async (req: AuthRequest) => {
   try {
-    const body = await req.json();
-    const { currentPassword, newPassword } = body;
+    const { currentPassword, newPassword } = await req.json();
 
+    // Validate input
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { error: "Current password and new password are required" },
@@ -25,18 +26,19 @@ export const PUT = withAuth(async (req: AuthRequest) => {
     // Get user with password
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
+      select: {
+        id: true,
+        password: true,
+      },
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Verify current password
-    const isPasswordValid = await comparePassword(currentPassword, user.password);
-    if (!isPasswordValid) {
+    const isCurrentPasswordValid = await compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
       return NextResponse.json(
         { error: "Current password is incorrect" },
         { status: 400 }
@@ -44,19 +46,19 @@ export const PUT = withAuth(async (req: AuthRequest) => {
     }
 
     // Hash new password
-    const hashedPassword = await hashPassword(newPassword);
+    const hashedNewPassword = await hash(newPassword, 12);
 
     // Update password
     await prisma.user.update({
-      where: { id: user.id },
-      data: { password: hashedPassword },
+      where: { id: req.user!.id },
+      data: { password: hashedNewPassword },
     });
 
     return NextResponse.json({ message: "Password updated successfully" });
   } catch (error: any) {
-    console.error("Error updating password:", error);
+    console.error("Error changing password:", error);
     return NextResponse.json(
-      { error: "Failed to update password" },
+      { error: "Failed to change password" },
       { status: 500 }
     );
   }
