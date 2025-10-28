@@ -5,12 +5,18 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import UserAvatar from "@/app/components/UserAvatar";
 
+// Match your Prisma schema exactly
+enum Role {
+  USER = "USER",
+  ADMIN = "ADMIN",
+}
+
 interface User {
   id: string;
   name: string;
   email: string;
   phone?: string;
-  role: string;
+  role: Role;
   avatar?: string;
   isVerified: boolean;
   createdAt: string;
@@ -20,7 +26,7 @@ interface UserFormData {
   name: string;
   email: string;
   phone: string;
-  role: string;
+  role: Role;
   isVerified: boolean;
   avatar?: string;
 }
@@ -112,19 +118,15 @@ export default function EditUserPage() {
   const userId = params.userId as string;
 
   const [user, setUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState<UserFormData>({
-    name: "",
-    email: "",
-    phone: "",
-    role: "USER",
-    isVerified: false,
-  });
+  const [formData, setFormData] = useState<UserFormData | null>(null);
   const [originalData, setOriginalData] = useState<UserFormData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+    {}
+  );
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -135,25 +137,31 @@ export default function EditUserPage() {
       setLoading(true);
       setError(null);
 
+      console.log("Fetching user with ID:", userId);
+
       const res = await fetch(`/api/users/${userId}`);
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error("User not found");
         }
-        throw new Error("Failed to fetch user");
+        throw new Error(`Failed to fetch user: ${res.status}`);
       }
 
       const userData: User = await res.json();
+      console.log("Fetched user data:", userData);
+
       setUser(userData);
 
       const initialFormData: UserFormData = {
-        name: userData.name,
-        email: userData.email,
+        name: userData.name || "",
+        email: userData.email || "",
         phone: userData.phone || "",
-        role: userData.role,
-        isVerified: userData.isVerified,
+        role: userData.role || Role.USER,
+        isVerified: userData.isVerified || false,
         avatar: userData.avatar,
       };
+
+      console.log("Initial form data:", initialFormData);
 
       setFormData(initialFormData);
       setOriginalData(initialFormData);
@@ -161,6 +169,7 @@ export default function EditUserPage() {
         setAvatarPreview(userData.avatar);
       }
     } catch (err: any) {
+      console.error("Error fetching user:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -174,36 +183,45 @@ export default function EditUserPage() {
   }, [userId, fetchUser]);
 
   // Check if form has changes
-  const hasChanges =
-    originalData &&
-    (formData.name !== originalData.name ||
+  const hasChanges = useCallback(() => {
+    if (!formData || !originalData) return false;
+
+    return (
+      formData.name !== originalData.name ||
       formData.email !== originalData.email ||
       formData.phone !== originalData.phone ||
       formData.role !== originalData.role ||
       formData.isVerified !== originalData.isVerified ||
-      formData.avatar !== originalData.avatar);
+      avatarFile !== null
+    );
+  }, [formData, originalData, avatarFile]);
 
   // Handle input changes
-  const handleInputChange = (
-    field: keyof UserFormData,
-    value: string | boolean
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  const handleInputChange = useCallback(
+    (field: keyof UserFormData, value: string | boolean | Role) => {
+      setFormData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [field]: value,
+        };
+      });
 
-    // Clear validation errors when user starts typing
-    if (validationErrors[field as keyof ValidationErrors]) {
-      setValidationErrors((prev) => ({
-        ...prev,
-        [field]: undefined,
-      }));
-    }
-  };
+      // Clear validation errors when user starts typing
+      if (validationErrors[field as keyof ValidationErrors]) {
+        setValidationErrors((prev) => ({
+          ...prev,
+          [field]: undefined,
+        }));
+      }
+    },
+    [validationErrors]
+  );
 
   // Validate form
   const validateForm = (): boolean => {
+    if (!formData) return false;
+
     const errors: ValidationErrors = {};
 
     if (!formData.name.trim()) {
@@ -224,13 +242,16 @@ export default function EditUserPage() {
 
     if (!formData.role) {
       errors.role = "Role is required";
+    } else if (!Object.values(Role).includes(formData.role)) {
+      errors.role = "Please select a valid role";
     }
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // ✅ FIXED: Avatar upload handler with proper state updates
+  // Handle avatar change
+  // In EditUserPage - update the handleAvatarChange function
   const handleAvatarChange = async (file: File) => {
     setAvatarUploading(true);
     setAvatarFile(file);
@@ -255,26 +276,24 @@ export default function EditUserPage() {
 
       const uploadData = await uploadRes.json();
 
-      if (uploadData.success && uploadData.avatarUrl) {
+      if (uploadData.success) {
+        // Use the avatarUrl from the response
         const newAvatarUrl = uploadData.avatarUrl;
-        
-        // ✅ Update formData with new avatar URL
-        setFormData(prev => ({
-          ...prev,
-          avatar: newAvatarUrl
-        }));
-        
-        // ✅ Update preview
+        setFormData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            avatar: newAvatarUrl,
+          };
+        });
         setAvatarPreview(newAvatarUrl);
-        
-        // ✅ Update user state
-        if (user) {
-          setUser(prev => prev ? { ...prev, avatar: newAvatarUrl } : null);
-        }
-
         setSuccessMessage("Avatar uploaded successfully!");
 
-        // Clear success message after 3 seconds
+        // Update the user state as well
+        if (uploadData.user) {
+          setUser(uploadData.user);
+        }
+
         setTimeout(() => {
           setSuccessMessage(null);
         }, 3000);
@@ -283,18 +302,18 @@ export default function EditUserPage() {
       }
     } catch (error: any) {
       console.error("Avatar upload error:", error);
-      setError(`Failed to upload avatar: ${error.message}`);
+      setAvatarPreview(user?.avatar || null);
+      setAvatarFile(null);
+      alert(`Failed to upload avatar: ${error.message}`);
     } finally {
       setAvatarUploading(false);
-      setAvatarFile(null);
     }
   };
-
-  // ✅ FIXED: Handle form submission with proper avatar inclusion
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    if (!formData || !validateForm()) {
       return;
     }
 
@@ -302,10 +321,14 @@ export default function EditUserPage() {
     setError(null);
 
     try {
-      // Include the avatar in the update data
+      // Update user data - ensure role is properly typed
       const updateData = {
-        ...formData,
-        // avatar is already included in formData from the upload
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        role: formData.role,
+        isVerified: formData.isVerified,
+        avatar: formData.avatar,
       };
 
       console.log("Updating user with data:", updateData);
@@ -320,38 +343,25 @@ export default function EditUserPage() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to update user");
+        throw new Error(
+          errorData.error || `Failed to update user: ${res.status}`
+        );
       }
 
       const updatedUser = await res.json();
-      
-      // ✅ Update all states with the new data
+      console.log("User updated successfully:", updatedUser);
+
       setUser(updatedUser);
-      setFormData({
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone || "",
-        role: updatedUser.role,
-        isVerified: updatedUser.isVerified,
-        avatar: updatedUser.avatar,
-      });
-      setOriginalData({
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone || "",
-        role: updatedUser.role,
-        isVerified: updatedUser.isVerified,
-        avatar: updatedUser.avatar,
-      });
-      
+      setOriginalData(formData);
       setAvatarFile(null);
       setSuccessMessage("User updated successfully!");
 
-      // Clear success message after 3 seconds
+      // Refresh the page to show updated data
       setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
+        router.refresh(); // Refresh the current route
+      }, 1000);
     } catch (err: any) {
+      console.error("Error updating user:", err);
       setError(err.message);
     } finally {
       setSaving(false);
@@ -391,6 +401,7 @@ export default function EditUserPage() {
       }
 
       router.push("/admin/users");
+      router.refresh(); // Refresh to show updated list
     } catch (err: any) {
       setError(err.message);
     }
@@ -404,7 +415,7 @@ export default function EditUserPage() {
     return <ErrorState error={error} onRetry={fetchUser} />;
   }
 
-  if (!user) {
+  if (!user || !formData) {
     return (
       <div className="px-4 sm:px-6 lg:px-10 py-6 w-full max-w-4xl mx-auto">
         <div className="text-center py-12">
@@ -412,7 +423,8 @@ export default function EditUserPage() {
             User Not Found
           </h2>
           <p className="text-gray-600 mb-8">
-            The user you're looking for doesn't exist.
+            The user you're looking for doesn't exist or data couldn't be
+            loaded.
           </p>
           <Link
             href="/admin/users"
@@ -549,16 +561,16 @@ export default function EditUserPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-gray-600">Status</dt>
+                  <dt className="text-gray-600">Current Role</dt>
                   <dd className="text-gray-900">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        formData.isVerified
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
+                        user.role === Role.ADMIN
+                          ? "bg-purple-100 text-purple-800"
+                          : "bg-blue-100 text-blue-800"
                       }`}
                     >
-                      {formData.isVerified ? "Verified" : "Pending"}
+                      {user.role}
                     </span>
                   </dd>
                 </div>
@@ -672,14 +684,15 @@ export default function EditUserPage() {
                 <select
                   id="role"
                   value={formData.role}
-                  onChange={(e) => handleInputChange("role", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("role", e.target.value as Role)
+                  }
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
                     validationErrors.role ? "border-red-300" : "border-gray-300"
                   }`}
                 >
-                  <option value="USER">User</option>
-                  <option value="ADMIN">Administrator</option>
-                  <option value="MODERATOR">Moderator</option>
+                  <option value={Role.USER}>User</option>
+                  <option value={Role.ADMIN}>Administrator</option>
                 </select>
                 {validationErrors.role && (
                   <p className="mt-1 text-sm text-red-600">
@@ -730,24 +743,19 @@ export default function EditUserPage() {
                 Role Permissions
               </h4>
               <ul className="text-sm text-blue-800 space-y-1">
-                {formData.role === "ADMIN" && (
+                {formData.role === Role.ADMIN && (
                   <>
                     <li>• Full access to all administrative features</li>
                     <li>• Can manage users, products, and orders</li>
                     <li>• Can modify system settings</li>
+                    <li>• Full database access and management</li>
                   </>
                 )}
-                {formData.role === "MODERATOR" && (
-                  <>
-                    <li>• Can manage user content and reviews</li>
-                    <li>• Can handle user reports and disputes</li>
-                    <li>• Limited access to administrative features</li>
-                  </>
-                )}
-                {formData.role === "USER" && (
+                {formData.role === Role.USER && (
                   <>
                     <li>• Standard user permissions</li>
                     <li>• Can place orders and write reviews</li>
+                    <li>• Can update personal profile information</li>
                     <li>• No administrative access</li>
                   </>
                 )}
@@ -759,7 +767,7 @@ export default function EditUserPage() {
         {/* Form Actions */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
           <div className="text-sm text-gray-500">
-            {hasChanges && (
+            {hasChanges() && (
               <span className="text-blue-600 font-medium">
                 You have unsaved changes
               </span>
@@ -769,14 +777,14 @@ export default function EditUserPage() {
             <button
               type="button"
               onClick={handleReset}
-              disabled={!hasChanges || saving}
+              disabled={!hasChanges() || saving}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Reset
             </button>
             <button
               type="submit"
-              disabled={!hasChanges || saving}
+              disabled={!hasChanges() || saving}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {saving ? (

@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { writeFile, mkdir, readFile } from 'fs/promises';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
-// Simple in-memory storage for demo (replace with real database in production)
-const avatarStorage = new Map();
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> } // ✅ FIX: params is now a Promise
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = await params; // ✅ FIX: Await the params
+    const { userId } = await params;
     
     console.log('🔍 Avatar upload request received for user:', userId);
-    console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
 
     if (!userId) {
       console.log('❌ No user ID provided');
@@ -21,9 +23,21 @@ export async function POST(
       );
     }
 
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      console.log('❌ User not found:', userId);
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const formData = await request.formData();
     
-    // Log all formData entries
     console.log('🔍 FormData entries:');
     for (const [key, value] of formData.entries()) {
       console.log(`  ${key}:`, value);
@@ -45,16 +59,17 @@ export async function POST(
     if (!file) {
       console.log('❌ No file found in formData');
       return NextResponse.json(
-        { error: 'No files uploaded' },
+        { error: 'No file uploaded' },
         { status: 400 }
       );
     }
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
       console.log('❌ Invalid file type:', file.type);
       return NextResponse.json(
-        { error: 'Only image files are allowed' },
+        { error: 'Only JPG, PNG, and WebP images are allowed' },
         { status: 400 }
       );
     }
@@ -70,25 +85,53 @@ export async function POST(
 
     console.log('✅ File validation passed, processing...');
 
-    // Convert file to base64 for simple storage
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const base64Image = `data:${file.type};base64,${buffer.toString('base64')}`;
 
-    // Store in memory (replace with database in production)
-    avatarStorage.set(userId, {
-      data: base64Image,
-      type: file.type,
-      name: file.name,
-      uploadedAt: new Date().toISOString()
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'avatars');
+    if (!existsSync(uploadsDir)) {
+      await mkdir(uploadsDir, { recursive: true });
+      console.log('✅ Created upload directory:', uploadsDir);
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const fileExtension = file.type.split('/')[1];
+    const filename = `avatar-${userId}-${timestamp}.${fileExtension}`;
+    const filepath = join(uploadsDir, filename);
+
+    // Save file to filesystem
+    await writeFile(filepath, buffer);
+    console.log('✅ File saved to:', filepath);
+
+    // Create URL for the avatar (relative to public directory)
+    const avatarUrl = `/uploads/avatars/${filename}`;
+
+    // Update user in database with new avatar URL
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { 
+        avatar: avatarUrl 
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatar: true,
+        role: true,
+        isVerified: true,
+      },
     });
 
-    console.log('✅ Avatar stored successfully for user:', userId);
+    console.log('✅ Avatar updated in database for user:', userId);
 
     return NextResponse.json({ 
       success: true,
-      avatarUrl: base64Image, // Return base64 data directly for immediate use
-      message: 'Avatar uploaded successfully'
+      avatarUrl: avatarUrl,
+      message: 'Avatar uploaded successfully',
+      user: updatedUser
     });
     
   } catch (error) {
@@ -100,18 +143,23 @@ export async function POST(
   }
 }
 
-// GET endpoint to serve the avatar image
+// GET endpoint to serve the avatar image from file system
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> } // ✅ FIX: params is now a Promise
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = await params; // ✅ FIX: Await the params
+    const { userId } = await params;
     
     console.log('🔍 GET avatar request for user:', userId);
-    
-    const avatarData = avatarStorage.get(userId);
-    if (!avatarData) {
+
+    // Get user from database to find avatar URL
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatar: true }
+    });
+
+    if (!user || !user.avatar) {
       console.log('❌ Avatar not found for user:', userId);
       return NextResponse.json(
         { error: 'Avatar not found' },
@@ -119,18 +167,45 @@ export async function GET(
       );
     }
 
+    // Extract filename from avatar URL
+    const filename = user.avatar.split('/').pop();
+    const filepath = join(process.cwd(), 'public', 'uploads', 'avatars', filename!);
+
+    if (!existsSync(filepath)) {
+      console.log('❌ Avatar file not found on disk:', filepath);
+      return NextResponse.json(
+        { error: 'Avatar file not found' },
+        { status: 404 }
+      );
+    }
+
+    // Read file as Buffer
+    const buffer = await readFile(filepath);
+    
+    // Determine content type from file extension
+    const extension = filename!.split('.').pop()?.toLowerCase();
+    const contentType = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'webp': 'image/webp'
+    }[extension!] || 'image/jpeg';
+
     console.log('✅ Avatar found, returning image data');
 
-    // Convert base64 back to buffer for image response
-    const base64Data = avatarData.data.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
+    // Convert Buffer to Uint8Array which is compatible with Response
+    const uint8Array = new Uint8Array(buffer);
+    
+    // Create headers
+    const headers = new Headers();
+    headers.set('Content-Type', contentType);
+    headers.set('Content-Length', buffer.length.toString());
+    headers.set('Cache-Control', 'public, max-age=86400');
 
-    return new Response(buffer, {
-      headers: {
-        'Content-Type': avatarData.type,
-        'Content-Length': buffer.length.toString(),
-        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
-      },
+    // Return the response with Uint8Array
+    return new Response(uint8Array, {
+      status: 200,
+      headers: headers
     });
   } catch (error) {
     console.error('❌ Error retrieving avatar:', error);
