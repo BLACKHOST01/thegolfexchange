@@ -371,7 +371,7 @@ const NavBar: React.FC = () => {
                 </>
               ) : (
                 <Link
-                  href="/login"
+                  href="/auth/login"
                   onClick={closeMobileMenu}
                   className="block bg-blue-600 text-white px-4 py-3 rounded text-center font-medium hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   tabIndex={isMobileMenuOpen ? 0 : -1}
