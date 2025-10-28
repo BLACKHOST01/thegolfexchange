@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../context/AuthContext";
-import { useCart } from "../context/CartContext";
+import { useAuth } from "../../../context/AuthContext";
+import { useCart } from "../../../context/CartContext";
 
 interface OrderSummary {
   id: string;

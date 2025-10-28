@@ -36,7 +36,7 @@ const menuItems: MenuItem[] = [
   { path: "/tournaments", label: "Tournaments" },
   { path: "/contact", label: "Contact" },
   { path: "/blog", label: "Blog" },
-  {path: "/profile", label: "Profile" },
+  {path: "/user/dashboard/profile", label: "Profile" },
 ];
 
 const NavBar: React.FC = () => {
