@@ -3,6 +3,19 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+// Define proper User interface
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  avatar?: string;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt?: string; // Add updatedAt as optional
+}
+
 interface UserUpdateData {
   name: string;
   email: string;
@@ -11,6 +24,20 @@ interface UserUpdateData {
   isVerified: boolean;
   avatar?: string;
 }
+
+// In-memory storage for demo - this will persist during server runtime
+let users: User[] = [
+  {
+    id: "1",
+    name: "John Doe",
+    email: "john@example.com",
+    phone: "+1234567890",
+    role: "USER",
+    avatar: "/avatar-placeholder.png",
+    isVerified: true,
+    createdAt: new Date().toISOString(),
+  }
+];
 
 // Helper function to validate email
 const validateEmail = (email: string): boolean => {
@@ -27,6 +54,25 @@ const handleError = (error: unknown, message: string) => {
   );
 };
 
+// Helper function to find user by ID
+const findUserById = (userId: string): User | undefined => {
+  return users.find(u => u.id === userId);
+};
+
+// Helper function to update user
+const updateUser = (userId: string, updateData: Partial<UserUpdateData>): User | null => {
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) return null;
+  
+  users[userIndex] = {
+    ...users[userIndex],
+    ...updateData,
+    updatedAt: new Date().toISOString(), // This is now allowed
+  };
+  
+  return users[userIndex];
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -34,23 +80,12 @@ export async function GET(
   try {
     const { userId } = await params;
     
-    // Mock response - replace with actual database call
-    const mockUser = {
-      id: userId,
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "+1234567890",
-      role: "USER",
-      avatar: "/avatar-placeholder.png",
-      isVerified: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    if (!mockUser) {
+    const user = findUserById(userId);
+    if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    return NextResponse.json(mockUser);
+    return NextResponse.json(user);
   } catch (error) {
     return handleError(error, 'Error fetching user');
   }
@@ -80,12 +115,11 @@ export async function PUT(
       );
     }
 
-    // Mock response - replace with actual database update
-    const updatedUser = {
-      id: userId,
-      ...updateData,
-      updatedAt: new Date().toISOString(),
-    };
+    // Update user in memory
+    const updatedUser = updateUser(userId, updateData);
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     return NextResponse.json(updatedUser);
   } catch (error) {
@@ -100,10 +134,12 @@ export async function DELETE(
   try {
     const { userId } = await params;
 
-    // Delete logic here - in real implementation, you would:
-    // 1. Delete user from database
-    // 2. Clean up associated files (like avatars)
-    // 3. Handle any related data cleanup
+    const userIndex = users.findIndex(u => u.id === userId);
+    if (userIndex === -1) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    users.splice(userIndex, 1);
 
     return NextResponse.json({ 
       success: true, 
@@ -128,10 +164,10 @@ export async function POST(
     }
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' },
+        { error: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' },
         { status: 400 }
       );
     }
@@ -143,6 +179,12 @@ export async function POST(
         { error: 'File too large. Maximum size is 5MB.' },
         { status: 400 }
       );
+    }
+
+    // Check if user exists
+    const existingUser = findUserById(userId);
+    if (!existingUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Convert file to buffer
@@ -167,18 +209,19 @@ export async function POST(
     // Generate public URL
     const avatarUrl = `/uploads/avatars/${filename}`;
 
-    // ✅ In real implementation, update user in database with avatar URL
-    // Example with Prisma:
-    /*
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: { avatar: avatarUrl }
-    });
-    */
+    // ✅ Update user in memory with the new avatar URL
+    const updatedUser = updateUser(userId, { avatar: avatarUrl });
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'Failed to update user avatar' }, { status: 500 });
+    }
+
+    console.log('Avatar uploaded successfully for user:', userId);
+    console.log('Updated user data:', updatedUser);
 
     return NextResponse.json({ 
       success: true, 
       avatarUrl,
+      user: updatedUser, // Return the complete updated user
       message: 'Avatar uploaded successfully' 
     });
 

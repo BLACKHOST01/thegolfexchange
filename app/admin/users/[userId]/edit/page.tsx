@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import UserAvatar from "@/app/components/UserAvatar"; // Make sure this path matches your actual file location
+import UserAvatar from "@/app/components/UserAvatar";
 
 interface User {
   id: string;
@@ -124,9 +124,7 @@ export default function EditUserPage() {
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
-    {}
-  );
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -183,7 +181,7 @@ export default function EditUserPage() {
       formData.phone !== originalData.phone ||
       formData.role !== originalData.role ||
       formData.isVerified !== originalData.isVerified ||
-      avatarFile !== null);
+      formData.avatar !== originalData.avatar);
 
   // Handle input changes
   const handleInputChange = (
@@ -232,8 +230,7 @@ export default function EditUserPage() {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle avatar change
-  // Handle avatar change - using admin endpoint
+  // ✅ FIXED: Avatar upload handler with proper state updates
   const handleAvatarChange = async (file: File) => {
     setAvatarUploading(true);
     setAvatarFile(file);
@@ -244,30 +241,40 @@ export default function EditUserPage() {
 
       console.log("Uploading avatar for user:", userId);
 
-      // Use user-specific endpoint instead of /me/avatar
       const uploadRes = await fetch(`/api/users/${userId}/avatar`, {
         method: "POST",
         body: uploadFormData,
-        // Headers will be automatically included by browser if using session cookies
       });
 
-      const uploadData = await uploadRes.json();
-
       if (!uploadRes.ok) {
+        const errorData = await uploadRes.json();
         throw new Error(
-          uploadData.error || `Upload failed with status: ${uploadRes.status}`
+          errorData.error || `Upload failed with status: ${uploadRes.status}`
         );
       }
 
-      if (uploadData.success || uploadData.avatarUrl) {
-        const newAvatarUrl = uploadData.avatarUrl || uploadData.url;
-        setFormData((prev) => ({
+      const uploadData = await uploadRes.json();
+
+      if (uploadData.success && uploadData.avatarUrl) {
+        const newAvatarUrl = uploadData.avatarUrl;
+        
+        // ✅ Update formData with new avatar URL
+        setFormData(prev => ({
           ...prev,
-          avatar: newAvatarUrl,
+          avatar: newAvatarUrl
         }));
+        
+        // ✅ Update preview
         setAvatarPreview(newAvatarUrl);
+        
+        // ✅ Update user state
+        if (user) {
+          setUser(prev => prev ? { ...prev, avatar: newAvatarUrl } : null);
+        }
+
         setSuccessMessage("Avatar uploaded successfully!");
 
+        // Clear success message after 3 seconds
         setTimeout(() => {
           setSuccessMessage(null);
         }, 3000);
@@ -276,15 +283,14 @@ export default function EditUserPage() {
       }
     } catch (error: any) {
       console.error("Avatar upload error:", error);
-      setAvatarPreview(user?.avatar || null);
-      setAvatarFile(null);
-      alert(`Failed to upload avatar: ${error.message}`);
+      setError(`Failed to upload avatar: ${error.message}`);
     } finally {
       setAvatarUploading(false);
+      setAvatarFile(null);
     }
   };
 
-  // Handle form submission
+  // ✅ FIXED: Handle form submission with proper avatar inclusion
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -296,10 +302,13 @@ export default function EditUserPage() {
     setError(null);
 
     try {
-      // Update user data (avatar should already be updated via separate upload)
+      // Include the avatar in the update data
       const updateData = {
         ...formData,
+        // avatar is already included in formData from the upload
       };
+
+      console.log("Updating user with data:", updateData);
 
       const res = await fetch(`/api/users/${userId}`, {
         method: "PUT",
@@ -315,8 +324,26 @@ export default function EditUserPage() {
       }
 
       const updatedUser = await res.json();
+      
+      // ✅ Update all states with the new data
       setUser(updatedUser);
-      setOriginalData(formData);
+      setFormData({
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone || "",
+        role: updatedUser.role,
+        isVerified: updatedUser.isVerified,
+        avatar: updatedUser.avatar,
+      });
+      setOriginalData({
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone || "",
+        role: updatedUser.role,
+        isVerified: updatedUser.isVerified,
+        avatar: updatedUser.avatar,
+      });
+      
       setAvatarFile(null);
       setSuccessMessage("User updated successfully!");
 
@@ -522,9 +549,17 @@ export default function EditUserPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-gray-600">Last Updated</dt>
+                  <dt className="text-gray-600">Status</dt>
                   <dd className="text-gray-900">
-                    {new Date().toLocaleDateString()}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        formData.isVerified
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {formData.isVerified ? "Verified" : "Pending"}
+                    </span>
                   </dd>
                 </div>
               </dl>
