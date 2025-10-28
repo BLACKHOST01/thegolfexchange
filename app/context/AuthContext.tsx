@@ -158,7 +158,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     window.dispatchEvent(
       new StorageEvent("storage", { key: "user", newValue: null })
     );
-    router.push("/login");
+    router.push("/auth/login");
   };
 
   const updateUser = (userData: Partial<User>) => {

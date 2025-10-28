@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      router.push("/"); // redirect to home on success
+      router.push("/shop"); // redirect to home on success
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -79,7 +79,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-gray-600 dark:text-gray-400">
             Don’t have an account?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline">
+            <Link href="/auth/register" className="text-blue-600 hover:underline">
               Register
             </Link>
           </p>

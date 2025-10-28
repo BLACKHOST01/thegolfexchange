@@ -22,7 +22,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await signup(name, email, password);
-      router.push("/"); // redirect after signup
+      router.push("/shop"); // redirect after signup
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {
@@ -92,7 +92,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-gray-600 dark:text-gray-400">
             Already have an account?{" "}
-            <Link href="/login" className="text-blue-600 hover:underline">
+            <Link href="/auth/login" className="text-blue-600 hover:underline">
               Login
             </Link>
           </p>

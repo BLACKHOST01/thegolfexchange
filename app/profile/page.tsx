@@ -466,7 +466,7 @@ export default function ProfilePage() {
                       Your orders are stored in this browser. For permanent
                       order history and account features,{" "}
                       <button
-                        onClick={() => router.push("/auth/signup")}
+                        onClick={() => router.push("/auth/register")}
                         className="font-medium underline hover:text-yellow-600"
                       >
                         create an account

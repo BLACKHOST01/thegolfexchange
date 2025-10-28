@@ -137,7 +137,7 @@ export default function CartPage() {
 
   // Handle continue shopping
   const handleContinueShopping = () => {
-    router.push('/products');
+    router.push('/shop');
   };
 
   if (cartItems.length === 0) {
