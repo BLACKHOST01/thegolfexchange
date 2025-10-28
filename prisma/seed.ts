@@ -6,21 +6,29 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding database for The Golf Exchange...");
 
-  // Clear existing data (optional - be careful in production)
+  // Clear existing data in correct order to respect foreign key constraints
   console.log("🧹 Clearing existing data...");
+  
+  // Delete in correct order (child tables first, then parent tables)
+  await prisma.note.deleteMany(); // Add this line - notes reference orders
   await prisma.transaction.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.cartItem.deleteMany();
   await prisma.cart.deleteMany();
   await prisma.review.deleteMany();
+  await prisma.uploadedFile.deleteMany(); // Add this line - files reference products
   await prisma.product.deleteMany();
+  await prisma.subcategory.deleteMany(); // Add this line - subcategories reference categories
   await prisma.category.deleteMany();
   await prisma.user.deleteMany();
 
-  // --- USERS ---
-  console.log("👥 Creating users...");
-  const seller = await prisma.user.create({
+// --- USERS ---
+console.log("👥 Creating users...");
+
+// Create multiple specific users
+const users = await Promise.all([
+  prisma.user.create({
     data: {
       name: "John Doe",
       email: "seller@golfexchange.com",
@@ -28,9 +36,8 @@ async function main() {
       role: Role.ADMIN,
       isVerified: true,
     },
-  });
-
-  const buyer = await prisma.user.create({
+  }),
+  prisma.user.create({
     data: {
       name: "Jane Smith",
       email: "buyer@golfexchange.com",
@@ -39,7 +46,40 @@ async function main() {
       isVerified: true,
       phone: "+1234567890",
     },
-  });
+  }),
+  prisma.user.create({
+    data: {
+      name: "Mike Johnson",
+      email: "mike.johnson@example.com",
+      password: "hashedpassword123",
+      role: Role.USER,
+      isVerified: true,
+      phone: "+1234567891",
+    },
+  }),
+  prisma.user.create({
+    data: {
+      name: "Sarah Wilson",
+      email: "sarah.wilson@example.com",
+      password: "hashedpassword123",
+      role: Role.USER,
+      isVerified: true,
+      phone: "+1234567892",
+    },
+  }),
+  prisma.user.create({
+    data: {
+      name: "Admin User",
+      email: "admin@golfexchange.com",
+      password: "hashedpassword123",
+      role: Role.ADMIN,
+      isVerified: true,
+      phone: "+1234567893",
+    },
+  }),
+]);
+
+const [seller, buyer, mike, sarah, admin] = users;
 
   // --- CATEGORIES ---
   console.log("📂 Creating categories...");
@@ -209,6 +249,16 @@ async function main() {
       });
     }
 
+    // Create some notes for orders (optional)
+    if (faker.datatype.boolean({ probability: 0.3 })) {
+      await prisma.note.create({
+        data: {
+          content: faker.lorem.sentence(),
+          orderId: order.id,
+        },
+      });
+    }
+
     orders.push(order);
     console.log(`✅ Created order ${i + 1} with status: ${order.status}`);
   }
@@ -235,6 +285,7 @@ async function main() {
     - Products: ${products.length}
     - Orders: ${orders.length}
     - Reviews: ${await prisma.review.count()}
+    - Notes: ${await prisma.note.count()}
   `);
 }
 
