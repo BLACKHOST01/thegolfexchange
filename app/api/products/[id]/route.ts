@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     
     // Handle image uploads
     const files = formData.getAll("files") as File[];
-    let imageData: any[] = [];
+    const imageData: any[] = [];
     
     if (files.length > 0) {
       console.log(`🟡 Processing ${files.length} files`);

@@ -13,7 +13,6 @@ interface OrderSummary {
   itemsCount: number;
 }
 
-// Fix: Define proper message type
 type MessageType = "success" | "error" | "info";
 
 interface Message {
@@ -22,12 +21,14 @@ interface Message {
 }
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const router = useRouter();
   const { guestOrders, currentOrder, loadGuestOrders } = useCart();
 
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
-  const [activeTab, setActiveTab] = useState<"profile" | "orders" | "security">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "orders" | "security">(
+    "profile"
+  );
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
@@ -46,27 +47,25 @@ export default function ProfilePage() {
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
-  // Fix 1: Single useEffect for initial data loading
+  // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setLoading(true);
-        
+
         if (user) {
-          // Load user data
           setFormData({
             name: user.name || "",
             email: user.email || "",
             phone: user.phone || "",
           });
-          
+
+          // Always use the avatar from user data (from database)
           setAvatarPreview(user.avatar || "");
-          
-          // Load user orders
           await fetchRecentOrders();
         } else {
-          // Load guest orders
           await loadGuestOrders();
         }
       } catch (error) {
@@ -78,9 +77,9 @@ export default function ProfilePage() {
     };
 
     loadInitialData();
-  }, [user]); // Only depend on user
+  }, [user]);
 
-  // Fix 2: Proper order fetching function
+  // Fetch recent orders
   const fetchRecentOrders = async () => {
     if (!user?.token) {
       console.log("No user token available");
@@ -88,20 +87,14 @@ export default function ProfilePage() {
     }
 
     try {
-      console.log("Fetching orders for user:", user.id);
-
       const res = await fetch("/api/users/me/orders?limit=5", {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
       });
 
-      console.log("Orders API response status:", res.status);
-
       if (res.ok) {
         const orders = await res.json();
-        console.log("Orders data received:", orders);
-
         const ordersArray = Array.isArray(orders) ? orders : [];
         setRecentOrders(ordersArray);
 
@@ -112,7 +105,9 @@ export default function ProfilePage() {
           });
         }
       } else {
-        const errorData = await res.json().catch(() => ({ error: "Failed to load orders" }));
+        const errorData = await res
+          .json()
+          .catch(() => ({ error: "Failed to load orders" }));
         setMessage({
           type: "error",
           text: errorData.error || "Failed to load orders",
@@ -127,14 +122,18 @@ export default function ProfilePage() {
     }
   };
 
-  // Fix 3: Safe guest orders transformation
+  // Get guest orders for display
   const getGuestOrdersDisplay = (): OrderSummary[] => {
     if (!guestOrders || !Array.isArray(guestOrders)) return [];
 
     return guestOrders.map((order: any) => {
-      const itemsCount = order.items && Array.isArray(order.items) 
-        ? order.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0)
-        : 0;
+      const itemsCount =
+        order.items && Array.isArray(order.items)
+          ? order.items.reduce(
+              (sum: number, item: any) => sum + (item.quantity || 0),
+              0
+            )
+          : 0;
 
       return {
         id: order.id || `guest-${Math.random().toString(36).substr(2, 9)}`,
@@ -150,7 +149,7 @@ export default function ProfilePage() {
     return user ? recentOrders : getGuestOrdersDisplay();
   };
 
-  // Fix 4: Profile update handler
+  // Profile update handler
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.token) {
@@ -180,11 +179,9 @@ export default function ProfilePage() {
       }
 
       const updatedUser = await res.json();
-      
-      // Update user in context and localStorage
-      const newUserData = { ...user, ...updatedUser };
-      localStorage.setItem("user", JSON.stringify(newUserData));
-      window.dispatchEvent(new Event("storage"));
+
+      // Update user in context
+      updateUser(updatedUser);
 
       setMessage({ type: "success", text: "Profile updated successfully!" });
     } catch (error: any) {
@@ -194,7 +191,7 @@ export default function ProfilePage() {
     }
   };
 
-  // Fix 5: Password change handler
+  // Password change handler
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.token) {
@@ -254,60 +251,120 @@ export default function ProfilePage() {
     }
   };
 
-  // Fix 6: Avatar handlers
+  // Avatar file selection handler
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
+    if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setAvatarPreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setMessage({ type: "error", text: "Please select an image file" });
+      return;
     }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage({ type: "error", text: "Image size must be less than 5MB" });
+      return;
+    }
+
+    setAvatarFile(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setAvatarPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
+  // ✅ FIXED: Avatar upload handler that persists to database
   const handleAvatarUpload = async () => {
-    if (!avatarFile || !user?.token) return;
+    if (!avatarFile || !user?.id) {
+      setMessage({ type: "error", text: "No file selected or user not found" });
+      return;
+    }
 
-    setUpdating(true);
+    setAvatarUploading(true);
     setMessage(null);
 
     try {
       const formData = new FormData();
       formData.append("avatar", avatarFile);
 
-      const res = await fetch("/api/users/me/avatar", {
+      console.log("Uploading avatar for user:", user.id);
+
+      // Use user-specific endpoint
+      const res = await fetch(`/api/users/${user.id}`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
         body: formData,
       });
 
+      console.log("Upload response status:", res.status);
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to upload avatar");
+        let errorMessage = `Upload failed with status: ${res.status}`;
+        
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = res.statusText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await res.json();
+      console.log("Upload response data:", data);
 
-      // Update user in context
-      const updatedUser = { ...user, avatar: data.avatarUrl };
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      window.dispatchEvent(new Event("storage"));
+      // Get the new avatar URL from response
+      const newAvatarUrl = data.avatarUrl || data.url || data.imageUrl;
+      
+      if (!newAvatarUrl) {
+        throw new Error("No avatar URL returned from server");
+      }
+
+      // ✅ CRITICAL: Update the user in the database with the new avatar URL
+      const updateRes = await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          avatar: newAvatarUrl
+        }),
+      });
+
+      if (!updateRes.ok) {
+        throw new Error("Failed to update user profile with new avatar");
+      }
+
+      const updatedUserData = await updateRes.json();
+
+      // Update user in context with the complete updated user data
+      updateUser(updatedUserData);
 
       setMessage({ type: "success", text: "Avatar updated successfully!" });
       setAvatarFile(null);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setMessage(null);
+      }, 3000);
+      
     } catch (error: any) {
+      console.error("Avatar upload error:", error);
       setMessage({ type: "error", text: error.message });
+      
+      // Reset preview on error
+      setAvatarPreview(user.avatar || "");
     } finally {
-      setUpdating(false);
+      setAvatarUploading(false);
     }
   };
 
-  // Fix 7: Input change handlers
+  // Input change handlers
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -316,7 +373,9 @@ export default function ProfilePage() {
     }));
   };
 
-  const handlePasswordChangeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePasswordChangeInput = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const { name, value } = e.target;
     setPasswordData((prev) => ({
       ...prev,
@@ -324,10 +383,14 @@ export default function ProfilePage() {
     }));
   };
 
-  // Fix 8: Status styles helper
+  // Status styles helper
   const getStatusStyles = (status: string) => {
     const statusUpper = status.toUpperCase();
-    if (statusUpper === "DELIVERED" || statusUpper === "CONFIRMED" || statusUpper === "COMPLETED") {
+    if (
+      statusUpper === "DELIVERED" ||
+      statusUpper === "CONFIRMED" ||
+      statusUpper === "COMPLETED"
+    ) {
       return "bg-green-100 text-green-800";
     } else if (statusUpper === "CANCELLED" || statusUpper === "FAILED") {
       return "bg-red-100 text-red-800";
@@ -382,7 +445,11 @@ export default function ProfilePage() {
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <svg
+                    className="w-5 h-5 text-yellow-400"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
@@ -391,10 +458,13 @@ export default function ProfilePage() {
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">Guest Mode</h3>
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    Guest Mode
+                  </h3>
                   <div className="mt-2 text-sm text-yellow-700">
                     <p>
-                      Your orders are stored in this browser. For permanent order history and account features,{" "}
+                      Your orders are stored in this browser. For permanent
+                      order history and account features,{" "}
                       <button
                         onClick={() => router.push("/auth/signup")}
                         className="font-medium underline hover:text-yellow-600"
@@ -410,6 +480,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* Message Display */}
         {message && (
           <div
             className={`mb-6 p-4 rounded-lg ${
@@ -420,7 +491,24 @@ export default function ProfilePage() {
                 : "bg-blue-50 border border-blue-200 text-blue-800"
             }`}
           >
-            {message.text}
+            <div className="flex items-center">
+              {message.type === "success" && (
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+              {message.type === "error" && (
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              )}
+              {message.type === "info" && (
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span>{message.text}</span>
+            </div>
           </div>
         )}
 
@@ -464,9 +552,13 @@ export default function ProfilePage() {
 
                 {/* Account Info */}
                 <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Account Info</h3>
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Account Info
+                  </h3>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <p className="capitalize">{user?.role?.toLowerCase() || "user"} account</p>
+                    <p className="capitalize">
+                      {user?.role?.toLowerCase() || "user"} account
+                    </p>
                     <button
                       onClick={logout}
                       className="text-red-600 hover:text-red-800 transition mt-2"
@@ -484,12 +576,19 @@ export default function ProfilePage() {
             {/* For Guest Users: Always show orders tab */}
             {isGuestUser ? (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Orders</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                  Recent Orders
+                </h2>
 
                 {displayOrders.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-gray-400 mb-4">
-                      <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-16 h-16 mx-auto"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -498,7 +597,9 @@ export default function ProfilePage() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No orders yet
+                    </h3>
                     <p className="text-gray-500 mb-4">
                       Your guest order history will appear here after checkout
                     </p>
@@ -515,7 +616,12 @@ export default function ProfilePage() {
                     {currentOrder && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                         <div className="flex items-center mb-2">
-                          <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg
+                            className="w-5 h-5 text-green-600 mr-2"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -523,17 +629,28 @@ export default function ProfilePage() {
                               d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
                           </svg>
-                          <h3 className="font-semibold text-green-800">Latest Order</h3>
+                          <h3 className="font-semibold text-green-800">
+                            Latest Order
+                          </h3>
                         </div>
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="font-medium">Order #{currentOrder.orderNumber}</p>
+                            <p className="font-medium">
+                              Order #{currentOrder.orderNumber}
+                            </p>
                             <p className="text-sm text-gray-600">
-                              {currentOrder.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0} items • $
+                              {currentOrder.items?.reduce(
+                                (sum, item) => sum + (item.quantity || 0),
+                                0
+                              ) || 0}{" "}
+                              items • $
                               {(currentOrder.totalAmount || 0).toFixed(2)}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Placed on {new Date(currentOrder.createdAt).toLocaleDateString()}
+                              Placed on{" "}
+                              {new Date(
+                                currentOrder.createdAt
+                              ).toLocaleDateString()}
                             </p>
                           </div>
                           <span
@@ -564,11 +681,13 @@ export default function ProfilePage() {
                               )}
                             </h3>
                             <p className="text-sm text-gray-600">
-                              {order.itemsCount} item{order.itemsCount !== 1 ? "s" : ""} • $
+                              {order.itemsCount} item
+                              {order.itemsCount !== 1 ? "s" : ""} • $
                               {order.totalAmount.toFixed(2)}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                              {new Date(order.createdAt).toLocaleDateString()} at{" "}
+                              {new Date(order.createdAt).toLocaleDateString()}{" "}
+                              at{" "}
                               {new Date(order.createdAt).toLocaleTimeString()}
                             </p>
                           </div>
@@ -590,9 +709,12 @@ export default function ProfilePage() {
                 {/* Guest user CTA */}
                 {displayOrders.length > 0 && (
                   <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h3 className="font-semibold text-blue-800 mb-2">Want to save your order history?</h3>
+                    <h3 className="font-semibold text-blue-800 mb-2">
+                      Want to save your order history?
+                    </h3>
                     <p className="text-blue-700 text-sm mb-3">
-                      Create an account to access your order history from any device and get exclusive benefits.
+                      Create an account to access your order history from any
+                      device and get exclusive benefits.
                     </p>
                     <div className="flex space-x-3">
                       <button
@@ -617,7 +739,9 @@ export default function ProfilePage() {
                 {/* Personal Information Tab */}
                 {activeTab === "profile" && (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Personal Information</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Personal Information
+                    </h2>
 
                     {/* Avatar Section */}
                     <div className="flex items-center space-x-6 mb-8">
@@ -637,9 +761,14 @@ export default function ProfilePage() {
                         )}
                         <label
                           htmlFor="avatar-upload"
-                          className="absolute bottom-0 right-0 bg-blue-600 text-white p-1 rounded-full cursor-pointer hover:bg-blue-700"
+                          className="absolute bottom-0 right-0 bg-blue-600 text-white p-1 rounded-full cursor-pointer hover:bg-blue-700 transition"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -663,16 +792,39 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div>
-                        <h3 className="text-lg font-medium text-gray-900">{user?.name}</h3>
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {user?.name}
+                        </h3>
                         <p className="text-gray-500">{user?.email}</p>
                         {avatarFile && (
-                          <button
-                            onClick={handleAvatarUpload}
-                            disabled={updating}
-                            className="mt-2 bg-green-600 text-white px-4 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
-                          >
-                            {updating ? "Uploading..." : "Save Avatar"}
-                          </button>
+                          <div className="mt-2 flex space-x-2">
+                            <button
+                              onClick={handleAvatarUpload}
+                              disabled={avatarUploading}
+                              className="bg-green-600 text-white px-4 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50 transition"
+                            >
+                              {avatarUploading ? (
+                                <span className="flex items-center">
+                                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Uploading...
+                                </span>
+                              ) : (
+                                "Save Avatar"
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAvatarFile(null);
+                                setAvatarPreview(user.avatar || "");
+                              }}
+                              className="bg-gray-500 text-white px-4 py-1 rounded text-sm hover:bg-gray-600 transition"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -680,7 +832,10 @@ export default function ProfilePage() {
                     <form onSubmit={handleProfileUpdate} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                          <label
+                            htmlFor="name"
+                            className="block text-sm font-medium text-gray-700 mb-2"
+                          >
                             Full Name
                           </label>
                           <input
@@ -689,13 +844,16 @@ export default function ProfilePage() {
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             required
                           />
                         </div>
 
                         <div>
-                          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                          <label
+                            htmlFor="email"
+                            className="block text-sm font-medium text-gray-700 mb-2"
+                          >
                             Email Address
                           </label>
                           <input
@@ -704,13 +862,16 @@ export default function ProfilePage() {
                             name="email"
                             value={formData.email}
                             onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             required
                           />
                         </div>
 
                         <div>
-                          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                          <label
+                            htmlFor="phone"
+                            className="block text-sm font-medium text-gray-700 mb-2"
+                          >
                             Phone Number
                           </label>
                           <input
@@ -719,7 +880,8 @@ export default function ProfilePage() {
                             name="phone"
                             value={formData.phone}
                             onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            placeholder="Optional"
                           />
                         </div>
                       </div>
@@ -743,7 +905,17 @@ export default function ProfilePage() {
                           disabled={updating}
                           className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {updating ? "Updating..." : "Save Changes"}
+                          {updating ? (
+                            <span className="flex items-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Updating...
+                            </span>
+                          ) : (
+                            "Save Changes"
+                          )}
                         </button>
                       </div>
                     </form>
@@ -753,12 +925,19 @@ export default function ProfilePage() {
                 {/* Order History Tab for logged-in users */}
                 {activeTab === "orders" && (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Orders</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Recent Orders
+                    </h2>
 
                     {displayOrders.length === 0 ? (
                       <div className="text-center py-8">
                         <div className="text-gray-400 mb-4">
-                          <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg
+                            className="w-16 h-16 mx-auto"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -767,8 +946,12 @@ export default function ProfilePage() {
                             />
                           </svg>
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
-                        <p className="text-gray-500">Your order history will appear here</p>
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                          No orders yet
+                        </h3>
+                        <p className="text-gray-500">
+                          Your order history will appear here
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -779,9 +962,12 @@ export default function ProfilePage() {
                           >
                             <div className="flex justify-between items-start">
                               <div>
-                                <h3 className="font-medium text-gray-900">Order #{order.id.slice(-8)}</h3>
+                                <h3 className="font-medium text-gray-900">
+                                  Order #{order.id.slice(-8)}
+                                </h3>
                                 <p className="text-sm text-gray-600">
-                                  {order.itemsCount} item{order.itemsCount !== 1 ? "s" : ""} • $
+                                  {order.itemsCount} item
+                                  {order.itemsCount !== 1 ? "s" : ""} • $
                                   {order.totalAmount.toFixed(2)}
                                 </p>
                               </div>
@@ -794,7 +980,9 @@ export default function ProfilePage() {
                                   {order.status}
                                 </span>
                                 <p className="text-sm text-gray-600 mt-1">
-                                  {new Date(order.createdAt).toLocaleDateString()}
+                                  {new Date(
+                                    order.createdAt
+                                  ).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
@@ -808,11 +996,16 @@ export default function ProfilePage() {
                 {/* Security Tab */}
                 {activeTab === "security" && (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Change Password</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Change Password
+                    </h2>
 
                     <form onSubmit={handlePasswordChange} className="space-y-6">
                       <div>
-                        <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label
+                          htmlFor="currentPassword"
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
                           Current Password
                         </label>
                         <input
@@ -821,13 +1014,16 @@ export default function ProfilePage() {
                           name="currentPassword"
                           value={passwordData.currentPassword}
                           onChange={handlePasswordChangeInput}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                           required
                         />
                       </div>
 
                       <div>
-                        <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label
+                          htmlFor="newPassword"
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
                           New Password
                         </label>
                         <input
@@ -836,14 +1032,17 @@ export default function ProfilePage() {
                           name="newPassword"
                           value={passwordData.newPassword}
                           onChange={handlePasswordChangeInput}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                           required
                           minLength={6}
                         />
                       </div>
 
                       <div>
-                        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label
+                          htmlFor="confirmPassword"
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
                           Confirm New Password
                         </label>
                         <input
@@ -852,7 +1051,7 @@ export default function ProfilePage() {
                           name="confirmPassword"
                           value={passwordData.confirmPassword}
                           onChange={handlePasswordChangeInput}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                           required
                         />
                       </div>
@@ -863,7 +1062,17 @@ export default function ProfilePage() {
                           disabled={updating}
                           className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {updating ? "Updating..." : "Change Password"}
+                          {updating ? (
+                            <span className="flex items-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Updating...
+                            </span>
+                          ) : (
+                            "Change Password"
+                          )}
                         </button>
                       </div>
                     </form>
