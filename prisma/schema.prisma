@@ -28,6 +28,11 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum NoteType {
+  INTERNAL
+  CUSTOMER
+}
+
 // =============== MODELS =====================
 
 model User {
@@ -42,14 +47,21 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // NEW: Add notification settings
+  notificationSettings Json?
+
   // Relations
   products         Product[]
   orders           Order[]
   reviews          Review[]
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
-  cart             Cart? // ✅ Added opposite relation for Cart
-  notes            Note[] // Add this line to complete the relation
+  cart             Cart?
+  notes            Note[]
+  
+  // NEW: Add addresses and wishlist
+  addresses      Address[]
+  wishlist       WishlistItem[]
 }
 
 model Category {
@@ -78,7 +90,7 @@ model Product {
   subcategoryId String?
   subcategory   Subcategory?   @relation(fields: [subcategoryId], references: [id])
   condition     Condition
-  images        UploadedFile[] // ✅ renamed relation
+  images        UploadedFile[]
   stock         Int
   isUsed        Boolean        @default(false)
   isFeatured    Boolean        @default(false)
@@ -92,6 +104,9 @@ model Product {
   orderItems OrderItem[]
   reviews    Review[]
   cartItems  CartItem[]
+  
+  // NEW: Add wishlist relation
+  wishlistedBy WishlistItem[]
 }
 
 model UploadedFile {
@@ -111,15 +126,15 @@ model Order {
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  orderNumber String?     @unique // Add this line
+  orderNumber String?     @unique
 
   buyer   User   @relation(fields: [buyerId], references: [id])
   buyerId String
 
   items           OrderItem[]
   transaction     Transaction?
-  shippingAddress ShippingAddress? // ✅ Add this
-  notes           Note[] // ✅ Add this
+  shippingAddress ShippingAddress?
+  notes           Note[]
 }
 
 model OrderItem {
@@ -148,6 +163,25 @@ model ShippingAddress {
   orderId String? @unique
 }
 
+// NEW: User Addresses Model (for address book)
+model Address {
+  id         String   @id @default(cuid())
+  title      String   // e.g., "Home", "Work"
+  street     String
+  city       String
+  state      String
+  country    String   @default("Nigeria")
+  postalCode String
+  phone      String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  @@map("addresses")
+}
+
 model Note {
   id        String   @id @default(cuid())
   content   String
@@ -158,13 +192,8 @@ model Note {
   order   Order  @relation(fields: [orderId], references: [id])
   orderId String
 
-  author   User?   @relation(fields: [authorId], references: [id]) // This relation field
-  authorId String? // This is the relation scalar field
-}
-
-enum NoteType {
-  INTERNAL
-  CUSTOMER
+  author   User?   @relation(fields: [authorId], references: [id])
+  authorId String?
 }
 
 model Review {
@@ -211,6 +240,20 @@ model CartItem {
   cart      Cart     @relation(fields: [cartId], references: [id])
   cartId    String
   addedAt   DateTime @default(now())
+}
+
+// NEW: Wishlist Model
+model WishlistItem {
+  id        String   @id @default(cuid())
+  addedAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  userId  String
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@unique([userId, productId])
 }
 
 model Transaction {

@@ -25,7 +25,7 @@ interface User {
 interface UserFormData {
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   role: Role;
   isVerified: boolean;
   avatar?: string;
@@ -140,11 +140,13 @@ export default function EditUserPage() {
       console.log("Fetching user with ID:", userId);
 
       const res = await fetch(`/api/users/${userId}`);
+
       if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error("User not found");
-        }
-        throw new Error(`Failed to fetch user: ${res.status}`);
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData.error ||
+            `Failed to fetch user: ${res.status} ${res.statusText}`
+        );
       }
 
       const userData: User = await res.json();
@@ -165,12 +167,23 @@ export default function EditUserPage() {
 
       setFormData(initialFormData);
       setOriginalData(initialFormData);
+
+      // Improved avatar preview handling
       if (userData.avatar) {
-        setAvatarPreview(userData.avatar);
+        // Check if it's already a full URL or relative path
+        if (userData.avatar.startsWith("http") || userData.avatar.startsWith("/")) {
+          setAvatarPreview(userData.avatar);
+        } else if (userData.avatar.startsWith("uploads/avatars/")) {
+          setAvatarPreview(`/${userData.avatar}`);
+        } else {
+          setAvatarPreview(`/uploads/avatars/${userData.avatar}`);
+        }
+      } else {
+        setAvatarPreview(null);
       }
     } catch (err: any) {
       console.error("Error fetching user:", err);
-      setError(err.message);
+      setError(err.message || "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
@@ -182,19 +195,45 @@ export default function EditUserPage() {
     }
   }, [userId, fetchUser]);
 
+  // Handle success message timeout
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (successMessage) {
+      timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [successMessage]);
+
   // Check if form has changes
   const hasChanges = useCallback(() => {
     if (!formData || !originalData) return false;
 
-    return (
+    const basicChanges =
       formData.name !== originalData.name ||
       formData.email !== originalData.email ||
       formData.phone !== originalData.phone ||
       formData.role !== originalData.role ||
-      formData.isVerified !== originalData.isVerified ||
-      avatarFile !== null
-    );
+      formData.isVerified !== originalData.isVerified;
+
+    return basicChanges || avatarFile !== null;
   }, [formData, originalData, avatarFile]);
+
+  // Handle beforeunload for unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasChanges]);
 
   // Handle input changes
   const handleInputChange = useCallback(
@@ -224,25 +263,35 @@ export default function EditUserPage() {
 
     const errors: ValidationErrors = {};
 
+    // Name validation
     if (!formData.name.trim()) {
       errors.name = "Name is required";
     } else if (formData.name.trim().length < 2) {
       errors.name = "Name must be at least 2 characters";
+    } else if (formData.name.trim().length > 50) {
+      errors.name = "Name must be less than 50 characters";
     }
 
+    // Email validation
     if (!formData.email.trim()) {
       errors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = "Please enter a valid email address";
     }
 
-    if (formData.phone && !/^\+?[\d\s-()]+$/.test(formData.phone)) {
-      errors.phone = "Please enter a valid phone number";
+    // Improved phone validation - more permissive
+    if (formData.phone && formData.phone.trim()) {
+      const phoneRegex = /^(\+?\d{1,4}[\s-]?)?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,9}$/;
+      const cleanPhone = formData.phone.replace(/\s/g, '');
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.phone = "Please enter a valid phone number";
+      } else if (cleanPhone.length < 10) {
+        errors.phone = "Phone number must be at least 10 digits";
+      }
     }
 
-    if (!formData.role) {
-      errors.role = "Role is required";
-    } else if (!Object.values(Role).includes(formData.role)) {
+    // Role validation
+    if (!Object.values(Role).includes(formData.role)) {
       errors.role = "Please select a valid role";
     }
 
@@ -250,11 +299,25 @@ export default function EditUserPage() {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle avatar change
-  // In EditUserPage - update the handleAvatarChange function
+  // Handle avatar change with improved validation
   const handleAvatarChange = async (file: File) => {
+    // File validation
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File size must be less than 5MB");
+      return;
+    }
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setError("Only JPG, PNG, and WebP images are allowed");
+      return;
+    }
+
     setAvatarUploading(true);
     setAvatarFile(file);
+    setError(null);
 
     try {
       const uploadFormData = new FormData();
@@ -277,7 +340,6 @@ export default function EditUserPage() {
       const uploadData = await uploadRes.json();
 
       if (uploadData.success) {
-        // Use the avatarUrl from the response
         const newAvatarUrl = uploadData.avatarUrl;
         setFormData((prev) => {
           if (!prev) return prev;
@@ -293,10 +355,6 @@ export default function EditUserPage() {
         if (uploadData.user) {
           setUser(uploadData.user);
         }
-
-        setTimeout(() => {
-          setSuccessMessage(null);
-        }, 3000);
       } else {
         throw new Error(uploadData.error || "Upload failed");
       }
@@ -304,16 +362,17 @@ export default function EditUserPage() {
       console.error("Avatar upload error:", error);
       setAvatarPreview(user?.avatar || null);
       setAvatarFile(null);
-      alert(`Failed to upload avatar: ${error.message}`);
+      setError(`Failed to upload avatar: ${error.message}`);
     } finally {
       setAvatarUploading(false);
     }
   };
-  // Handle form submission
+
+  // Handle form submission with duplicate submission protection
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData || !validateForm()) {
+    if (!formData || !validateForm() || saving) {
       return;
     }
 
@@ -325,7 +384,7 @@ export default function EditUserPage() {
       const updateData = {
         name: formData.name.trim(),
         email: formData.email.trim(),
-        phone: formData.phone.trim(),
+        phone: formData.phone?.trim() || "",
         role: formData.role,
         isVerified: formData.isVerified,
         avatar: formData.avatar,
@@ -356,10 +415,16 @@ export default function EditUserPage() {
       setAvatarFile(null);
       setSuccessMessage("User updated successfully!");
 
-      // Refresh the page to show updated data
+      // Option 1: Refresh the page to show updated data
       setTimeout(() => {
-        router.refresh(); // Refresh the current route
+        router.refresh();
       }, 1000);
+
+      // Option 2: Redirect to users list with success message
+      // setTimeout(() => {
+      //   router.push('/admin/users?updated=true');
+      // }, 1500);
+
     } catch (err: any) {
       console.error("Error updating user:", err);
       setError(err.message);
@@ -401,7 +466,7 @@ export default function EditUserPage() {
       }
 
       router.push("/admin/users");
-      router.refresh(); // Refresh to show updated list
+      router.refresh();
     } catch (err: any) {
       setError(err.message);
     }
@@ -466,9 +531,13 @@ export default function EditUserPage() {
         <p className="text-gray-600">Update user information and permissions</p>
       </div>
 
-      {/* Success Message */}
+      {/* Success Message with dismiss button */}
       {successMessage && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+        <div 
+          className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4"
+          role="alert"
+          aria-live="polite"
+        >
           <div className="flex items-center">
             <svg
               className="w-5 h-5 text-green-600 mr-3"
@@ -484,13 +553,24 @@ export default function EditUserPage() {
               />
             </svg>
             <span className="text-green-800 font-medium">{successMessage}</span>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="ml-auto text-green-600 hover:text-green-800 text-lg font-bold"
+              aria-label="Dismiss success message"
+            >
+              ×
+            </button>
           </div>
         </div>
       )}
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div 
+          className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4"
+          role="alert"
+          aria-live="assertive"
+        >
           <div className="flex items-center">
             <svg
               className="w-5 h-5 text-red-600 mr-3"
@@ -557,7 +637,11 @@ export default function EditUserPage() {
                 <div>
                   <dt className="text-gray-600">Joined</dt>
                   <dd className="text-gray-900">
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {new Date(user.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
                   </dd>
                 </div>
                 <div>
@@ -613,9 +697,10 @@ export default function EditUserPage() {
                   validationErrors.name ? "border-red-300" : "border-gray-300"
                 }`}
                 placeholder="Enter user's full name"
+                aria-describedby={validationErrors.name ? "name-error" : undefined}
               />
               {validationErrors.name && (
-                <p className="mt-1 text-sm text-red-600">
+                <p id="name-error" className="mt-1 text-sm text-red-600" role="alert">
                   {validationErrors.name}
                 </p>
               )}
@@ -638,9 +723,10 @@ export default function EditUserPage() {
                   validationErrors.email ? "border-red-300" : "border-gray-300"
                 }`}
                 placeholder="Enter email address"
+                aria-describedby={validationErrors.email ? "email-error" : undefined}
               />
               {validationErrors.email && (
-                <p className="mt-1 text-sm text-red-600">
+                <p id="email-error" className="mt-1 text-sm text-red-600" role="alert">
                   {validationErrors.email}
                 </p>
               )}
@@ -657,15 +743,16 @@ export default function EditUserPage() {
               <input
                 type="tel"
                 id="phone"
-                value={formData.phone}
+                value={formData.phone || ""}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
                   validationErrors.phone ? "border-red-300" : "border-gray-300"
                 }`}
                 placeholder="Enter phone number (optional)"
+                aria-describedby={validationErrors.phone ? "phone-error" : undefined}
               />
               {validationErrors.phone && (
-                <p className="mt-1 text-sm text-red-600">
+                <p id="phone-error" className="mt-1 text-sm text-red-600" role="alert">
                   {validationErrors.phone}
                 </p>
               )}
@@ -690,12 +777,13 @@ export default function EditUserPage() {
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
                     validationErrors.role ? "border-red-300" : "border-gray-300"
                   }`}
+                  aria-describedby={validationErrors.role ? "role-error" : undefined}
                 >
                   <option value={Role.USER}>User</option>
                   <option value={Role.ADMIN}>Administrator</option>
                 </select>
                 {validationErrors.role && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p id="role-error" className="mt-1 text-sm text-red-600" role="alert">
                     {validationErrors.role}
                   </p>
                 )}
@@ -777,20 +865,25 @@ export default function EditUserPage() {
             <button
               type="button"
               onClick={handleReset}
-              disabled={!hasChanges() || saving}
+              disabled={!hasChanges() || saving || avatarUploading}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Reset
             </button>
             <button
               type="submit"
-              disabled={!hasChanges() || saving}
+              disabled={!hasChanges() || saving || avatarUploading}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {saving ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Saving...
+                </>
+              ) : avatarUploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Uploading...
                 </>
               ) : (
                 "Save Changes"
