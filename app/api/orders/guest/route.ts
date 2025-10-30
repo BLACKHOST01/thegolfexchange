@@ -1,19 +1,18 @@
 // app/api/orders/guest/route.ts
-import { NextResponse } from 'next/server';
-import { PrismaClient, OrderStatus, NoteType } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { NextResponse } from "next/server";
+import { PrismaClient, OrderStatus, NoteType } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
 
 interface GuestOrderInput {
-  orderNumber: string;
   items: Array<{
     productId: string;
     quantity: number;
     price: number;
   }>;
   totalAmount: number;
-  status: OrderStatus;
+  status?: OrderStatus;
   shippingAddress: {
     street: string;
     city: string;
@@ -33,33 +32,38 @@ interface GuestOrderInput {
   }>;
 }
 
+// Generate unique order number
+function generateOrderNumber(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `ORD-${timestamp}-${random}`.toUpperCase();
+}
+
 export async function POST(req: Request) {
   try {
     const data: GuestOrderInput = await req.json();
 
     // Basic validation
-    if (!data.orderNumber || !data.customerInfo?.email || !data.items?.length) {
+    if (!data.customerInfo?.email || !data.items?.length) {
       return NextResponse.json(
-        { error: 'Missing required fields: orderNumber, customerInfo.email, items' },
+        {
+          error: "Missing required fields: customerInfo.email, items",
+        },
         { status: 400 }
       );
     }
 
-    // First, check if we need to add orderNumber field to your schema
-    // For now, we'll check if an order with this number already exists using findFirst
-    const existingOrder = await prisma.order.findFirst({
-      where: { 
-        // Since orderNumber doesn't exist in your schema, we can't use it directly
-        // We'll need to track order numbers differently or add the field to schema
-        id: data.orderNumber // Using ID as fallback, but you should add orderNumber to schema
-      }
+    // Generate order number
+    let orderNumber = generateOrderNumber();
+
+    // Check if order number already exists (unlikely but safe)
+    const existingOrder = await prisma.order.findUnique({
+      where: { orderNumber },
     });
 
     if (existingOrder) {
-      return NextResponse.json(
-        { error: 'Order already exists' },
-        { status: 409 }
-      );
+      // Regenerate if collision occurs
+      orderNumber = generateOrderNumber();
     }
 
     // Create or connect to guest user
@@ -75,17 +79,16 @@ export async function POST(req: Request) {
         password: randomUUID(),
         phone: data.customerInfo.phone,
         isVerified: false,
-        role: 'USER',
+        role: "USER",
       },
     });
 
-    // Create the order
+    // Create the order WITH orderNumber
     const order = await prisma.order.create({
       data: {
-        // Note: Your current schema doesn't have orderNumber field
-        // You'll need to add it to the Order model or use a different approach
+        orderNumber, // Add this required field
         totalAmount: data.totalAmount,
-        status: data.status,
+        status: data.status || 'PENDING',
         buyerId: guestUser.id,
         items: {
           create: data.items.map((item) => ({
@@ -99,17 +102,20 @@ export async function POST(req: Request) {
             street: data.shippingAddress.street,
             city: data.shippingAddress.city,
             state: data.shippingAddress.state,
-            postalCode: data.shippingAddress.zipCode, // Map zipCode to postalCode
+            postalCode: data.shippingAddress.zipCode,
             country: data.shippingAddress.country,
-          }
+          },
         },
-        notes: data.notes && data.notes.length > 0 ? {
-          create: data.notes.map((note) => ({
-            content: note.content,
-            type: (note.type as NoteType) || NoteType.CUSTOMER, // Default to CUSTOMER
-            authorId: guestUser.id, // Set the author of the note
-          })),
-        } : undefined,
+        notes:
+          data.notes && data.notes.length > 0
+            ? {
+                create: data.notes.map((note) => ({
+                  content: note.content,
+                  type: (note.type as NoteType) || NoteType.CUSTOMER,
+                  authorId: guestUser.id,
+                })),
+              }
+            : undefined,
       },
       include: {
         items: {
@@ -117,7 +123,7 @@ export async function POST(req: Request) {
             product: {
               select: {
                 id: true,
-                title: true, // Use 'title' instead of 'name'
+                title: true,
                 price: true,
               },
             },
@@ -147,23 +153,23 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
-      message: 'Guest order created successfully',
+      message: "Guest order created successfully",
       order,
     });
   } catch (error) {
-    console.error('Failed to create guest order:', error);
-    
+    console.error("Failed to create guest order:", error);
+
     if (error instanceof Error) {
-      if (error.message.includes('Unique constraint')) {
+      if (error.message.includes("Unique constraint") || error.message.includes("orderNumber")) {
         return NextResponse.json(
-          { error: 'Order already exists' },
+          { error: "Order number already exists" },
           { status: 409 }
         );
       }
     }
 
     return NextResponse.json(
-      { error: 'Failed to create guest order' },
+      { error: "Failed to create guest order" },
       { status: 500 }
     );
   }
@@ -172,12 +178,13 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const email = searchParams.get('email');
-    const orderId = searchParams.get('orderId'); // Using orderId since orderNumber doesn't exist
+    const email = searchParams.get("email");
+    const orderId = searchParams.get("orderId");
+    const orderNumber = searchParams.get("orderNumber"); // New parameter
 
-    if (!email && !orderId) {
+    if (!email && !orderId && !orderNumber) {
       return NextResponse.json(
-        { error: 'Email or order ID is required' },
+        { error: "Email, order ID, or order number is required" },
         { status: 400 }
       );
     }
@@ -186,6 +193,10 @@ export async function GET(req: Request) {
 
     if (orderId) {
       whereClause.id = orderId;
+    }
+
+    if (orderNumber) {
+      whereClause.orderNumber = orderNumber;
     }
 
     if (email) {
@@ -208,7 +219,7 @@ export async function GET(req: Request) {
             product: {
               select: {
                 id: true,
-                title: true, // Use 'title' instead of 'name'
+                title: true,
                 price: true,
               },
             },
@@ -230,15 +241,15 @@ export async function GET(req: Request) {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
 
     return NextResponse.json({ orders });
   } catch (error) {
-    console.error('Failed to fetch guest orders:', error);
+    console.error("Failed to fetch guest orders:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch guest orders' },
+      { error: "Failed to fetch guest orders" },
       { status: 500 }
     );
   }

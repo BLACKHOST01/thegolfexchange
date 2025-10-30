@@ -1,73 +1,77 @@
 import { NextResponse } from "next/server";
-import { PrismaClient, OrderStatus } from "@prisma/client";
+import { PrismaClient, OrderStatus, NoteType } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
 
-/**
- * POST /api/checkout
- * Process checkout for both authenticated users and guests
- */
 export async function POST(req: Request) {
   try {
-    const { 
-      items, 
-      shippingAddress, 
-      notes,
-      customerInfo, // Add customerInfo for guest orders
-      isGuest = true // Default to guest since frontend uses guest system
-    } = await req.json();
+    const { items, shippingAddress, customerInfo } = await req.json();
 
-    // Validate request body
-    if (!items || !Array.isArray(items)) {
+    // Basic validation
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
+    }
+
+    if (
+      !shippingAddress?.street ||
+      !shippingAddress?.city ||
+      !shippingAddress?.postalCode
+    ) {
       return NextResponse.json(
-        { error: "Missing items array" },
+        { error: "Missing shipping information" },
         { status: 400 }
       );
     }
 
-    if (!shippingAddress) {
+    if (!customerInfo?.email || !customerInfo?.firstName || !customerInfo?.lastName) {
       return NextResponse.json(
-        { error: "Missing shipping address" },
+        { error: "Missing customer information" },
         { status: 400 }
       );
     }
 
-    // Validate each item
-    for (const item of items) {
-      if (!item.productId || !item.quantity) {
-        return NextResponse.json(
-          { error: "Missing productId or quantity in one or more items" },
-          { status: 400 }
-        );
-      }
-      
-      if (item.quantity <= 0) {
-        return NextResponse.json(
-          { error: "Quantity must be greater than 0" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Calculate total amount from items
-    const totalAmount = items.reduce((total: number, item: any) => {
-      return total + (item.price * item.quantity);
-    }, 0);
+    // Calculate total amount
+    const totalAmount = parseFloat(
+      items
+        .reduce((total: number, item: any) => {
+          return total + item.price * item.quantity;
+        }, 0)
+        .toFixed(2)
+    );
 
     // Generate order number
     const orderNumber = `TGE-${Date.now().toString().slice(-6)}`;
 
-    // Create order data object
-    const orderData: any = {
-      orderNumber, // Add order number
+    // Create or find guest user
+    const guestUser = await prisma.user.upsert({
+      where: { email: customerInfo.email },
+      update: {
+        name: `${customerInfo.firstName} ${customerInfo.lastName}`,
+        phone: customerInfo.phone,
+      },
+      create: {
+        email: customerInfo.email,
+        name: `${customerInfo.firstName} ${customerInfo.lastName}`,
+        password: randomUUID(), // Generate random password for guest users
+        phone: customerInfo.phone,
+        isVerified: false,
+        role: "USER",
+      },
+    });
+
+    // Create order data with proper types
+    const orderData = {
+      orderNumber,
       totalAmount,
-      status: OrderStatus.PAID, // Use PAID since frontend marks as paid
+      status: OrderStatus.PENDING,
+      buyerId: guestUser.id, // Add the required buyerId
       items: {
         create: items.map((item: any) => ({
-          productId: item.productId,
+          productId: item.productId || item.id,
           quantity: item.quantity,
-          price: item.price
-        }))
+          price: item.price,
+        })),
       },
       shippingAddress: {
         create: {
@@ -75,40 +79,23 @@ export async function POST(req: Request) {
           city: shippingAddress.city,
           state: shippingAddress.state,
           country: shippingAddress.country,
-          postalCode: shippingAddress.postalCode
-        }
-      }
+          postalCode: shippingAddress.postalCode,
+        },
+      },
+      notes: {
+        create: [
+          {
+            content: `Guest Order - ${customerInfo.firstName} ${customerInfo.lastName}, Email: ${customerInfo.email}, Phone: ${customerInfo.phone || 'N/A'}`,
+            type: NoteType.CUSTOMER,
+            authorId: guestUser.id, // Set author for the note
+          },
+        ],
+      },
     };
 
-    // For authenticated users, add buyerId
-    const userId = req.headers.get("x-user-id");
-    if (userId) {
-      orderData.buyerId = userId;
-      
-      // Clear user's cart if they're authenticated
-      const cart = await prisma.cart.findUnique({
-        where: { userId },
-        include: { items: true }
-      });
-      
-      if (cart && cart.items.length > 0) {
-        await prisma.cartItem.deleteMany({
-          where: { cartId: cart.id }
-        });
-      }
-    }
+    console.log("Creating order...");
 
-    // Add notes if provided
-    if (notes && Array.isArray(notes)) {
-      orderData.notes = {
-        create: notes.map((note: any) => ({
-          content: note.content || note,
-          type: note.type || 'CUSTOMER'
-        }))
-      };
-    }
-
-    // Create order
+    // Create order with all necessary includes
     const order = await prisma.order.create({
       data: orderData,
       include: {
@@ -118,34 +105,58 @@ export async function POST(req: Request) {
               select: {
                 title: true,
                 images: true,
-                condition: true
-              }
-            }
-          }
+                condition: true,
+              },
+            },
+          },
         },
         shippingAddress: true,
-        notes: true
-      }
+        notes: {
+          include: {
+            author: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    console.log("Order created successfully:", order.id);
 
     return NextResponse.json({
       message: "Order created successfully",
       order: {
         id: order.id,
-        orderNumber: (order as any).orderNumber,
+        orderNumber: order.orderNumber,
         totalAmount: order.totalAmount,
         status: order.status,
-        createdAt: order.createdAt,
-        items: order.items,
+        items: order.items.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+          product: item.product,
+        })),
         shippingAddress: order.shippingAddress,
-        notes: order.notes
-      }
+        notes: order.notes,
+      },
     });
-
-  } catch (err) {
+  } catch (err: any) {
     console.error("POST /api/checkout error:", err);
+    
+    // Handle specific Prisma errors
+    if (err.code === 'P2002') {
+      return NextResponse.json(
+        { error: "Order number already exists. Please try again." },
+        { status: 409 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Checkout failed" },
+      { error: "Checkout failed. Please try again." },
       { status: 500 }
     );
   }
@@ -158,14 +169,14 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const userId = req.headers.get("x-user-id");
-    
+
     // If no user ID, return empty array (guest users use local storage)
     if (!userId) {
       return NextResponse.json({ orders: [] });
     }
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status');
+    const status = searchParams.get("status");
 
     const whereClause: any = { buyerId: userId };
     if (status && Object.values(OrderStatus).includes(status as OrderStatus)) {
@@ -181,21 +192,48 @@ export async function GET(req: Request) {
               select: {
                 title: true,
                 images: true,
-                condition: true
-              }
-            }
-          }
+                condition: true,
+              },
+            },
+          },
         },
         shippingAddress: true,
-        notes: true
+        notes: {
+          include: {
+            author: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: "desc",
+      },
     });
 
-    return NextResponse.json({ orders });
-  } catch (err) {
+    return NextResponse.json({ 
+      orders: orders.map(order => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount: order.totalAmount,
+        status: order.status,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        items: order.items.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+          product: item.product,
+        })),
+        shippingAddress: order.shippingAddress,
+        notes: order.notes,
+      }))
+    });
+  } catch (err: any) {
     console.error("GET /api/checkout error:", err);
     return NextResponse.json(
       { error: "Failed to fetch orders" },
@@ -211,10 +249,10 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const userId = req.headers.get("x-user-id");
-    
+
     // Allow updates without user ID for guest orders
     const { searchParams } = new URL(req.url);
-    const orderId = searchParams.get('id');
+    const orderId = searchParams.get("id");
     const { status } = await req.json();
 
     if (!orderId) {
@@ -228,10 +266,10 @@ export async function PATCH(req: Request) {
     // If user ID is provided, verify the order belongs to the user
     if (userId) {
       const order = await prisma.order.findFirst({
-        where: { 
+        where: {
           id: orderId,
-          buyerId: userId 
-        }
+          buyerId: userId,
+        },
       });
 
       if (!order) {
@@ -249,20 +287,44 @@ export async function PATCH(req: Request) {
               select: {
                 title: true,
                 images: true,
-                condition: true
-              }
-            }
-          }
-        }
-      }
+                condition: true,
+              },
+            },
+          },
+        },
+        shippingAddress: true,
+        notes: {
+          include: {
+            author: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     return NextResponse.json({
       message: "Order status updated successfully",
-      order: updatedOrder
+      order: {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        totalAmount: updatedOrder.totalAmount,
+        status: updatedOrder.status,
+        items: updatedOrder.items.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+          product: item.product,
+        })),
+        shippingAddress: updatedOrder.shippingAddress,
+        notes: updatedOrder.notes,
+      },
     });
-
-  } catch (err) {
+  } catch (err: any) {
     console.error("PATCH /api/checkout error:", err);
     return NextResponse.json(
       { error: "Failed to update order" },

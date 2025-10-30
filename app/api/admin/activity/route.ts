@@ -35,7 +35,7 @@ export async function GET() {
       ...recentOrders.map(order => ({
         id: order.id,
         type: 'order' as const,
-        title: `New order from ${order.buyer.name}`,
+        title: `New order from ${order.buyer?.name || 'Unknown Buyer'}`, // Fixed: Added null check
         description: `Order total: $${order.totalAmount}`,
         timestamp: order.createdAt.toISOString(),
         status: order.status

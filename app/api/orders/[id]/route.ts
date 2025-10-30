@@ -60,17 +60,17 @@ export async function GET(
             },
           },
         },
-        transaction: {
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            provider: true,
-            providerRef: true,
-            status: true,
-            createdAt: true,
-          },
-        },
+        // transaction: {
+        //   select: {
+        //     id: true,
+        //     amount: true,
+        //     currency: true,
+        //     provider: true,
+        //     providerRef: true,
+        //     status: true,
+        //     createdAt: true,
+        //   },
+        // },
         shippingAddress: true, // Added shipping address
         notes: { // Added notes with author
           include: {
@@ -179,15 +179,15 @@ export async function PUT(
             },
           },
         },
-        transaction: {
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            provider: true,
-            status: true,
-          },
-        },
+        // transaction: {
+        //   select: {
+        //     id: true,
+        //     amount: true,
+        //     currency: true,
+        //     provider: true,
+        //     status: true,
+        //   },
+        // },
         shippingAddress: true, // Include shipping address in response
         notes: { // Include notes in response
           include: {

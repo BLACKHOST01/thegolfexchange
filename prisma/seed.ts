@@ -10,76 +10,98 @@ async function main() {
   console.log("🧹 Clearing existing data...");
   
   // Delete in correct order (child tables first, then parent tables)
-  await prisma.note.deleteMany(); // Add this line - notes reference orders
+  await prisma.note.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.orderItem.deleteMany();
+  await prisma.shippingAddress.deleteMany(); // Add this
+  await prisma.guestCustomer.deleteMany(); // Add this
   await prisma.order.deleteMany();
   await prisma.cartItem.deleteMany();
   await prisma.cart.deleteMany();
+  await prisma.wishlistItem.deleteMany(); // Add this
+  await prisma.address.deleteMany(); // Add this
   await prisma.review.deleteMany();
-  await prisma.uploadedFile.deleteMany(); // Add this line - files reference products
+  await prisma.message.deleteMany(); // Add this
+  await prisma.uploadedFile.deleteMany();
   await prisma.product.deleteMany();
-  await prisma.subcategory.deleteMany(); // Add this line - subcategories reference categories
+  await prisma.subcategory.deleteMany();
   await prisma.category.deleteMany();
   await prisma.user.deleteMany();
 
-// --- USERS ---
-console.log("👥 Creating users...");
+  // --- USERS ---
+  console.log("👥 Creating users...");
 
-// Create multiple specific users
-const users = await Promise.all([
-  prisma.user.create({
-    data: {
-      name: "John Doe",
-      email: "seller@golfexchange.com",
-      password: "hashedpassword123",
-      role: Role.ADMIN,
-      isVerified: true,
-    },
-  }),
-  prisma.user.create({
-    data: {
-      name: "Jane Smith",
-      email: "buyer@golfexchange.com",
-      password: "hashedpassword123",
-      role: Role.USER,
-      isVerified: true,
-      phone: "+1234567890",
-    },
-  }),
-  prisma.user.create({
-    data: {
-      name: "Mike Johnson",
-      email: "mike.johnson@example.com",
-      password: "hashedpassword123",
-      role: Role.USER,
-      isVerified: true,
-      phone: "+1234567891",
-    },
-  }),
-  prisma.user.create({
-    data: {
-      name: "Sarah Wilson",
-      email: "sarah.wilson@example.com",
-      password: "hashedpassword123",
-      role: Role.USER,
-      isVerified: true,
-      phone: "+1234567892",
-    },
-  }),
-  prisma.user.create({
-    data: {
-      name: "Admin User",
-      email: "admin@golfexchange.com",
-      password: "hashedpassword123",
-      role: Role.ADMIN,
-      isVerified: true,
-      phone: "+1234567893",
-    },
-  }),
-]);
+  // Create multiple specific users
+  const users = await Promise.all([
+    prisma.user.create({
+      data: {
+        name: "John Doe",
+        email: "seller@golfexchange.com",
+        password: "hashedpassword123",
+        role: Role.ADMIN,
+        isVerified: true,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Jane Smith",
+        email: "buyer@golfexchange.com",
+        password: "hashedpassword123",
+        role: Role.USER,
+        isVerified: true,
+        phone: "+1234567890",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Mike Johnson",
+        email: "mike.johnson@example.com",
+        password: "hashedpassword123",
+        role: Role.USER,
+        isVerified: true,
+        phone: "+1234567891",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Sarah Wilson",
+        email: "sarah.wilson@example.com",
+        password: "hashedpassword123",
+        role: Role.USER,
+        isVerified: true,
+        phone: "+1234567892",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Admin User",
+        email: "admin@golfexchange.com",
+        password: "hashedpassword123",
+        role: Role.ADMIN,
+        isVerified: true,
+        phone: "+1234567893",
+      },
+    }),
+  ]);
 
-const [seller, buyer, mike, sarah, admin] = users;
+  const [seller, buyer, mike, sarah, admin] = users;
+
+  // Create some addresses for users
+  console.log("🏠 Creating user addresses...");
+  for (const user of users) {
+    await prisma.address.create({
+      data: {
+        title: "Home",
+        street: faker.location.streetAddress(),
+        city: faker.location.city(),
+        state: faker.location.state(),
+        postalCode: faker.location.zipCode(),
+        phone: user.phone || faker.phone.number(),
+        isDefault: true,
+        userId: user.id,
+      },
+    });
+  }
 
   // --- CATEGORIES ---
   console.log("📂 Creating categories...");
@@ -164,7 +186,7 @@ const [seller, buyer, mike, sarah, admin] = users;
       data: {
         name: `product-${product.id}-image.jpg`,
         mimeType: 'image/jpeg',
-        data: Buffer.from('fake-image-data'), // In real scenario, this would be actual image data
+        data: Buffer.from('fake-image-data'),
         productId: product.id,
       },
     });
@@ -180,7 +202,21 @@ const [seller, buyer, mike, sarah, admin] = users;
           rating: faker.number.int({ min: 3, max: 5 }),
           comment: faker.lorem.sentence(),
           productId: product.id,
-          userId: buyer.id,
+          userId: faker.helpers.arrayElement([buyer.id, mike.id, sarah.id]),
+        },
+      });
+    }
+  }
+
+  // --- WISHLIST ITEMS ---
+  console.log("❤️ Creating wishlist items...");
+  for (const user of [buyer, mike, sarah]) {
+    const wishlistItems = faker.helpers.arrayElements(products, faker.number.int({ min: 1, max: 4 }));
+    for (const product of wishlistItems) {
+      await prisma.wishlistItem.create({
+        data: {
+          userId: user.id,
+          productId: product.id,
         },
       });
     }
@@ -206,9 +242,13 @@ const [seller, buyer, mike, sarah, admin] = users;
       };
     });
 
+    // Generate unique order number
+    const orderNumber = `GX-${Date.now()}-${faker.string.numeric(4)}`;
+
     const order = await prisma.order.create({
       data: {
-        buyerId: buyer.id,
+        orderNumber: orderNumber,
+        buyerId: faker.helpers.arrayElement([buyer.id, mike.id, sarah.id]),
         totalAmount: parseFloat(totalAmount.toFixed(2)),
         status: faker.helpers.arrayElement([
           OrderStatus.PENDING,
@@ -235,6 +275,17 @@ const [seller, buyer, mike, sarah, admin] = users;
       },
     });
 
+    // Create shipping address for the order
+    await prisma.shippingAddress.create({
+      data: {
+        street: faker.location.streetAddress(),
+        city: faker.location.city(),
+        state: faker.location.state(),
+        postalCode: faker.location.zipCode(),
+        orderId: order.id,
+      },
+    });
+
     // Create transaction for paid, shipped, or delivered orders
     if (order.status !== 'PENDING' && order.status !== 'CANCELLED') {
       await prisma.transaction.create({
@@ -245,6 +296,7 @@ const [seller, buyer, mike, sarah, admin] = users;
           providerRef: `TXN-${faker.string.alphanumeric(8).toUpperCase()}`,
           status: "SUCCESS",
           orderId: order.id,
+          userId: order.buyerId,
         },
       });
     }
@@ -255,12 +307,13 @@ const [seller, buyer, mike, sarah, admin] = users;
         data: {
           content: faker.lorem.sentence(),
           orderId: order.id,
+          authorId: faker.helpers.arrayElement([admin.id, seller.id]),
         },
       });
     }
 
     orders.push(order);
-    console.log(`✅ Created order ${i + 1} with status: ${order.status}`);
+    console.log(`✅ Created order ${orderNumber} with status: ${order.status}`);
   }
 
   // --- CART ---
@@ -277,15 +330,28 @@ const [seller, buyer, mike, sarah, admin] = users;
     },
   });
 
+  // --- MESSAGES ---
+  console.log("💌 Creating messages...");
+  await prisma.message.create({
+    data: {
+      content: "Hello, I'm interested in this product. Is it still available?",
+      senderId: buyer.id,
+      receiverId: seller.id,
+    },
+  });
+
   console.log("🎉 Seed completed successfully!");
   console.log(`📊 Summary:
-    - Users: 2
+    - Users: ${users.length}
     - Categories: ${categories.length}
     - Subcategories: ${subcategories.length}
     - Products: ${products.length}
     - Orders: ${orders.length}
     - Reviews: ${await prisma.review.count()}
+    - Addresses: ${await prisma.address.count()}
+    - Wishlist Items: ${await prisma.wishlistItem.count()}
     - Notes: ${await prisma.note.count()}
+    - Messages: ${await prisma.message.count()}
   `);
 }
 

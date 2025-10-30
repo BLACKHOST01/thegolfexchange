@@ -1,15 +1,19 @@
 "use client";
 
 import { useCart } from "@/app/context/CartContext";
-import { useAuth } from "@/app/context/AuthContext"; // Import useAuth
+import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import toast from "react-hot-toast";
 
 export default function CheckoutPage() {
   const { cartItems, total, itemCount, addGuestOrder } = useCart();
-  const { user } = useAuth(); // Get user from AuthContext
+  const { user } = useAuth();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [btcAddress, setBtcAddress] = useState("");
+  const [transactionId, setTransactionId] = useState("");
+
   const [customerInfo, setCustomerInfo] = useState({
     firstName: "",
     lastName: "",
@@ -31,49 +35,11 @@ export default function CheckoutPage() {
       [name]: value,
     }));
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate form
-    if (
-      !customerInfo.firstName ||
-      !customerInfo.lastName ||
-      !customerInfo.email ||
-      !customerInfo.street ||
-      !customerInfo.city ||
-      !customerInfo.postalCode
-    ) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
     setIsProcessing(true);
 
     try {
-      // Simulate payment processing
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Generate order ID and order number BEFORE creating the order
-      const orderId = `order_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-      const orderNumber = `TGE-${Date.now().toString().slice(-6)}`;
-
-      // Convert cart items to order items matching Prisma structure
-      const orderItems = cartItems.map((item) => ({
-        id: `oi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        quantity: item.quantity,
-        price: item.price,
-        productId: item.productId || item.id,
-        product: {
-          title: item.title || item.name,
-          images: item.images,
-          condition: item.condition || "NEW",
-        },
-      }));
-
-      // Create shipping address matching Prisma structure
       const shippingAddress = {
         street: customerInfo.street,
         city: customerInfo.city,
@@ -82,92 +48,114 @@ export default function CheckoutPage() {
         postalCode: customerInfo.postalCode,
       };
 
-      // Create notes matching Prisma structure
-      const notes = [
-        {
-          content: "Thank you for your order!",
-          type: "CUSTOMER" as const,
-          createdAt: new Date().toISOString(),
-        },
-        {
-          content: "Order placed by guest customer",
-          type: "INTERNAL" as const,
-          createdAt: new Date().toISOString(),
-        },
-      ];
+      const notes = `Customer: ${customerInfo.firstName} ${customerInfo.lastName}, Email: ${customerInfo.email}, Phone: ${customerInfo.phone}`;
 
-      // Create the complete order object
-      const order = {
-        id: orderId,
-        orderNumber: orderNumber,
-        items: orderItems,
-        totalAmount: total,
-        status: "PAID" as const,
-        createdAt: new Date().toISOString(),
+      // Transform cart items to match backend expectations
+      const transformedItems = cartItems.map((item) => ({
+        productId: item.id, // Use 'id' as 'productId'
+        id: item.id, // Keep original id as well
+        quantity: item.quantity,
+        price: item.price,
+        title: item.title || item.name,
+        images: item.images,
+      }));
+
+      console.log("Sending order data:", {
+        items: transformedItems,
         shippingAddress,
         notes,
-      };
+        customerInfo: {
+          firstName: customerInfo.firstName,
+          lastName: customerInfo.lastName,
+          email: customerInfo.email,
+          phone: customerInfo.phone,
+        },
+        isGuest: true,
+      });
 
-      // OPTIONAL: Try to save to backend if user is authenticated
-      if (user && user.id) {
+      // 1️⃣ Create order first
+      const orderResponse = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // ✅ Send session cookie
+        body: JSON.stringify({
+          items: transformedItems,
+          shippingAddress,
+          notes, // Send as string, backend will handle both formats
+          customerInfo: {
+            firstName: customerInfo.firstName,
+            lastName: customerInfo.lastName,
+            email: customerInfo.email,
+            phone: customerInfo.phone,
+          },
+          isGuest: true,
+        }),
+      });
+
+      // Get response text first to handle both JSON and text errors
+      const responseText = await orderResponse.text();
+
+      if (!orderResponse.ok) {
+        console.error("Order failed with status:", orderResponse.status);
+        console.error("Response text:", responseText);
+
+        let errorMessage = "Order creation failed";
         try {
-          const backendOrderData = {
-            items: orderItems.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              price: item.price,
-            })),
-            shippingAddress,
-            notes: notes.map((note) => ({
-              content: note.content,
-              type: note.type,
-            })),
-            isGuest: false,
-          };
-
-          const response = await fetch("/api/checkout", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-user-id": user.id,
-            },
-            body: JSON.stringify(backendOrderData),
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            console.log("Order saved to backend:", result);
-
-            // Update the order with backend data if needed
-            order.id = result.order.id;
-            order.orderNumber = result.order.orderNumber;
-          } else {
-            console.warn(
-              "Failed to save order to backend, using frontend only"
-            );
-          }
-        } catch (backendError) {
-          console.warn(
-            "Backend save failed, using frontend guest order:",
-            backendError
-          );
-          // Continue with frontend order - don't break the checkout flow
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If not JSON, use the raw text
+          errorMessage = responseText || errorMessage;
         }
+
+        throw new Error(errorMessage);
       }
 
-      // Add guest order - this will clear the cart and set currentOrder
-      addGuestOrder(order);
+      // Parse the successful response
+      const responseData = JSON.parse(responseText);
+      const { order } = responseData;
 
-      // Redirect to order confirmation page immediately using the known orderId
-      router.push(`/order-confirmation/${orderId}`);
-    } catch (error) {
-      console.error("Checkout failed:", error);
-      alert("Checkout failed. Please try again.");
+      if (!order || !order.id) {
+        throw new Error("Invalid order data received from server");
+      }
+
+      const orderId = order.id;
+      console.log("Order created successfully, ID:", orderId);
+
+      // 2️⃣ Continue with Bitcoin payment...
+      const paymentResponse = await fetch("/api/payments/bitcoin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // ✅ Send session cookie
+        body: JSON.stringify({
+          amount: order.totalAmount,
+          orderId,
+        }),
+      });
+
+      if (!paymentResponse.ok) {
+        const paymentError = await paymentResponse.json();
+        console.log("Payment initiation failed:", paymentError);
+        throw new Error(paymentError.error || "Payment initiation failed");
+      }
+
+      const paymentData = await paymentResponse.json();
+      toast.success("Order created! Redirecting to payment page...");
+
+      toast.success(
+        `Send ${order.totalAmount} BTC to:\n${paymentData.walletAddr}`
+      );
+      setBtcAddress(paymentData.walletAddr);
+      setTransactionId(paymentData.transactionId);
+
+      router.push(`/orders/${order.id}?status=pending`);
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      toast.error(error.message || "Something went wrong during checkout");
     } finally {
       setIsProcessing(false);
     }
   };
-
   if (cartItems.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -335,19 +323,18 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Payment Information (Simplified) */}
+            {/* Bitcoin Payment Information */}
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-4">
                 Payment Information
               </h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">
-                  For demonstration purposes, no real payment processing is
-                  implemented.
+              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                <p className="text-sm text-yellow-800 mb-2">
+                  <strong>Bitcoin Payment</strong>
                 </p>
-                <p className="text-sm text-gray-600">
-                  In a real application, you would integrate with a payment
-                  provider like Stripe, PayPal, etc.
+                <p className="text-sm text-yellow-700">
+                  After submitting your order, you will be provided with a
+                  Bitcoin wallet address to complete your payment.
                 </p>
               </div>
             </div>
@@ -382,7 +369,7 @@ export default function CheckoutPage() {
                   Processing Your Order...
                 </div>
               ) : (
-                `Complete Order - $${total.toFixed(2)}`
+                `Pay with Bitcoin - $${total.toFixed(2)}`
               )}
             </button>
 
