@@ -60,17 +60,17 @@ export async function GET(
             },
           },
         },
-        // transaction: {
-        //   select: {
-        //     id: true,
-        //     amount: true,
-        //     currency: true,
-        //     provider: true,
-        //     providerRef: true,
-        //     status: true,
-        //     createdAt: true,
-        //   },
-        // },
+        transaction: {
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            provider: true,
+            providerRef: true,
+            status: true,
+            createdAt: true,
+          },
+        },
         shippingAddress: true, // Added shipping address
         notes: { // Added notes with author
           include: {
