@@ -343,7 +343,7 @@ export default function OrderDetailsPage() {
   const shippingAddress = getShippingAddress(order);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-6xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-24 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
