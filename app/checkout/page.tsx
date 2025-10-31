@@ -35,11 +35,33 @@ export default function CheckoutPage() {
       [name]: value,
     }));
   };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
 
     try {
+      // Validate required fields
+      if (
+        !customerInfo.firstName ||
+        !customerInfo.lastName ||
+        !customerInfo.email
+      ) {
+        toast.error("Please fill in all required customer information");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (
+        !customerInfo.street ||
+        !customerInfo.city ||
+        !customerInfo.postalCode
+      ) {
+        toast.error("Please fill in all required shipping information");
+        setIsProcessing(false);
+        return;
+      }
+
       const shippingAddress = {
         street: customerInfo.street,
         city: customerInfo.city,
@@ -48,47 +70,37 @@ export default function CheckoutPage() {
         postalCode: customerInfo.postalCode,
       };
 
-      const notes = `Customer: ${customerInfo.firstName} ${customerInfo.lastName}, Email: ${customerInfo.email}, Phone: ${customerInfo.phone}`;
-
       // Transform cart items to match backend expectations
       const transformedItems = cartItems.map((item) => ({
-        productId: item.id, // Use 'id' as 'productId'
-        id: item.id, // Keep original id as well
+        productId: item.id,
         quantity: item.quantity,
         price: item.price,
-        title: item.title || item.name,
-        images: item.images,
       }));
 
       console.log("Sending order data:", {
         items: transformedItems,
         shippingAddress,
-        notes,
         customerInfo: {
           firstName: customerInfo.firstName,
           lastName: customerInfo.lastName,
           email: customerInfo.email,
-          phone: customerInfo.phone,
+          phone: customerInfo.phone || "",
         },
-        isGuest: true,
       });
 
       // 1️⃣ Create order first
       const orderResponse = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // ✅ Send session cookie
         body: JSON.stringify({
           items: transformedItems,
           shippingAddress,
-          notes, // Send as string, backend will handle both formats
           customerInfo: {
             firstName: customerInfo.firstName,
             lastName: customerInfo.lastName,
             email: customerInfo.email,
-            phone: customerInfo.phone,
+            phone: customerInfo.phone || "",
           },
-          isGuest: true,
         }),
       });
 
@@ -126,7 +138,6 @@ export default function CheckoutPage() {
       const paymentResponse = await fetch("/api/payments/bitcoin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // ✅ Send session cookie
         body: JSON.stringify({
           amount: order.totalAmount,
           orderId,
@@ -140,14 +151,15 @@ export default function CheckoutPage() {
       }
 
       const paymentData = await paymentResponse.json();
+
       toast.success("Order created! Redirecting to payment page...");
 
-      toast.success(
-        `Send ${order.totalAmount} BTC to:\n${paymentData.walletAddr}`
-      );
-      setBtcAddress(paymentData.walletAddr);
-      setTransactionId(paymentData.transactionId);
+      // Store order in local context if needed
+      if (addGuestOrder) {
+        addGuestOrder(order);
+      }
 
+      // Redirect to order confirmation page
       router.push(`/orders/${order.id}?status=pending`);
     } catch (error: any) {
       console.error("Checkout error:", error);
@@ -156,6 +168,7 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }
   };
+
   if (cartItems.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">

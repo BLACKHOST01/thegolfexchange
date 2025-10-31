@@ -30,6 +30,12 @@ interface Order {
     postalCode: string;
     country: string;
   };
+  notes?: {
+    id: string;
+    content: string;
+    type: string;
+    createdAt: string;
+  }[];
 }
 
 interface OrderItem {
@@ -39,6 +45,7 @@ interface OrderItem {
   product: {
     id: string;
     title: string;
+    price: number;
     images: {
       id: string;
       name: string;
@@ -141,6 +148,7 @@ export default function AdminOrdersPage() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 8;
 
   // Fetch orders with search and filters
@@ -150,22 +158,38 @@ export default function AdminOrdersPage() {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
       if (statusFilter !== "ALL") params.append("status", statusFilter);
-      
+      params.append("page", currentPage.toString());
+      params.append("limit", itemsPerPage.toString());
+
       const res = await fetch(`/api/orders?${params}`);
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || "Failed to fetch orders");
       }
       const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
-      setCurrentPage(1); // Reset to first page when filters change
+
+      // Handle the response structure correctly
+      if (data.data && data.data.orders) {
+        setOrders(data.data.orders);
+        setTotalPages(data.data.pagination?.totalPages || 1);
+      } else if (Array.isArray(data.data)) {
+        setOrders(data.data);
+        setTotalPages(1);
+      } else if (Array.isArray(data)) {
+        setOrders(data);
+        setTotalPages(1);
+      } else {
+        setOrders([]);
+        setTotalPages(1);
+      }
     } catch (err: any) {
       setError(err.message);
       setOrders([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, currentPage]);
 
   useEffect(() => {
     fetchOrders();
@@ -188,8 +212,8 @@ export default function AdminOrdersPage() {
       }
 
       // Update local state instead of refetching all orders
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
           order.id === orderId ? { ...order, status: newStatus } : order
         )
       );
@@ -200,11 +224,6 @@ export default function AdminOrdersPage() {
       setUpdatingOrder(null);
     }
   };
-
-  // Pagination logic
-  const totalPages = Math.ceil(orders.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentOrders = orders.slice(startIndex, startIndex + itemsPerPage);
 
   const handlePrev = () => setCurrentPage((p) => Math.max(p - 1, 1));
   const handleNext = () => setCurrentPage((p) => Math.min(p + 1, totalPages));
@@ -232,12 +251,22 @@ export default function AdminOrdersPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              <svg
+                className="h-5 w-5 text-red-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error loading orders</h3>
+              <h3 className="text-sm font-medium text-red-800">
+                Error loading orders
+              </h3>
               <p className="text-sm text-red-700 mt-1">{error}</p>
             </div>
           </div>
@@ -259,9 +288,11 @@ export default function AdminOrdersPage() {
     return (
       <div className="px-4 sm:px-6 lg:px-10 py-6 w-full max-w-7xl mx-auto">
         <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-gray-800">Manage Orders (0)</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Manage Orders (0)
+          </h1>
         </div>
-        
+
         {/* Search and Filter */}
         <div className="mb-6 space-y-4 sm:space-y-0 sm:flex sm:space-x-4">
           <div className="flex-1">
@@ -286,19 +317,30 @@ export default function AdminOrdersPage() {
             <option value="CANCELLED">Cancelled</option>
           </select>
         </div>
-        
+
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            <svg
+              className="w-16 h-16 mx-auto"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+              />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No orders found
+          </h3>
           <p className="text-gray-500 mb-4">
-            {searchTerm || statusFilter !== "ALL" 
-              ? "Try adjusting your search or filters" 
-              : "No orders have been placed yet"
-            }
+            {searchTerm || statusFilter !== "ALL"
+              ? "Try adjusting your search or filters"
+              : "No orders have been placed yet"}
           </p>
         </div>
       </div>
@@ -313,7 +355,8 @@ export default function AdminOrdersPage() {
           Manage Orders ({orders.length})
         </h1>
         <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-          Total Revenue: ${orders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
+          Total Revenue: $
+          {orders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
         </div>
       </div>
 
@@ -345,33 +388,43 @@ export default function AdminOrdersPage() {
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-gray-800">{orders.filter(o => o.status === "PENDING").length}</div>
+          <div className="text-2xl font-bold text-gray-800">
+            {orders.filter((o) => o.status === "PENDING").length}
+          </div>
           <div className="text-sm text-gray-600">Pending</div>
         </div>
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-blue-600">{orders.filter(o => o.status === "PAID").length}</div>
+          <div className="text-2xl font-bold text-blue-600">
+            {orders.filter((o) => o.status === "PAID").length}
+          </div>
           <div className="text-sm text-gray-600">Paid</div>
         </div>
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-purple-600">{orders.filter(o => o.status === "SHIPPED").length}</div>
+          <div className="text-2xl font-bold text-purple-600">
+            {orders.filter((o) => o.status === "SHIPPED").length}
+          </div>
           <div className="text-sm text-gray-600">Shipped</div>
         </div>
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-green-600">{orders.filter(o => o.status === "DELIVERED").length}</div>
+          <div className="text-2xl font-bold text-green-600">
+            {orders.filter((o) => o.status === "DELIVERED").length}
+          </div>
           <div className="text-sm text-gray-600">Delivered</div>
         </div>
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-red-600">{orders.filter(o => o.status === "CANCELLED").length}</div>
+          <div className="text-2xl font-bold text-red-600">
+            {orders.filter((o) => o.status === "CANCELLED").length}
+          </div>
           <div className="text-sm text-gray-600">Cancelled</div>
         </div>
       </div>
 
       {/* Mobile Cards */}
       <div className="grid grid-cols-1 sm:hidden gap-4">
-        {currentOrders.map((order) => (
-          <OrderCard 
-            key={order.id} 
-            order={order} 
+        {orders.map((order) => (
+          <OrderCard
+            key={order.id}
+            order={order}
             onStatusUpdate={handleStatusUpdate}
             updatingOrder={updatingOrder}
           />
@@ -393,10 +446,10 @@ export default function AdminOrdersPage() {
             </tr>
           </thead>
           <tbody>
-            {currentOrders.map((order) => (
-              <OrderRow 
-                key={order.id} 
-                order={order} 
+            {orders.map((order) => (
+              <OrderRow
+                key={order.id}
+                order={order}
                 onStatusUpdate={handleStatusUpdate}
                 updatingOrder={updatingOrder}
               />
@@ -416,7 +469,7 @@ export default function AdminOrdersPage() {
   );
 }
 
-// Desktop Table Row
+/// Desktop Table Row - FIXED VERSION
 function OrderRow({
   order,
   onStatusUpdate,
@@ -435,13 +488,25 @@ function OrderRow({
       </td>
       <td className="p-3 border-b">
         <div>
-          <div className="font-medium text-gray-900">{order.buyer.name}</div>
-          <div className="text-sm text-gray-600">{order.buyer.email}</div>
+          {/* FIX: Check if buyer exists before accessing properties */}
+          {order.buyer ? (
+            <>
+              <div className="font-medium text-gray-900">
+                {order.buyer.name}
+              </div>
+              <div className="text-sm text-gray-600">{order.buyer.email}</div>
+            </>
+          ) : (
+            <>
+              <div className="font-medium text-gray-900">Guest Customer</div>
+              <div className="text-sm text-gray-600">No account</div>
+            </>
+          )}
         </div>
       </td>
       <td className="p-3 border-b">
         <div className="text-sm text-gray-700">
-          {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+          {order.items.length} item{order.items.length !== 1 ? "s" : ""}
           <div className="text-xs text-gray-500 mt-1">
             {order.items[0]?.product.title}
             {order.items.length > 1 && ` + ${order.items.length - 1} more`}
@@ -485,8 +550,7 @@ function OrderRow({
     </tr>
   );
 }
-
-// Mobile Expandable Card
+// Mobile Expandable Card - FIXED VERSION
 function OrderCard({
   order,
   onStatusUpdate,
@@ -507,9 +571,21 @@ function OrderCard({
         <div className="flex-1">
           <div className="flex justify-between items-start">
             <div>
-              <h3 className="font-semibold text-gray-800">Order #{order.id.slice(0, 8)}</h3>
-              <p className="text-gray-600 text-sm">{order.buyer.name}</p>
-              <p className="text-gray-500 text-xs">{order.buyer.email}</p>
+              <h3 className="font-semibold text-gray-800">
+                Order #{order.id.slice(0, 8)}
+              </h3>
+              {/* FIX: Check if buyer exists before accessing properties */}
+              {order.buyer ? (
+                <>
+                  <p className="text-gray-600 text-sm">{order.buyer.name}</p>
+                  <p className="text-gray-500 text-xs">{order.buyer.email}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-600 text-sm">Guest Customer</p>
+                  <p className="text-gray-500 text-xs">No account</p>
+                </>
+              )}
             </div>
             <StatusBadge status={order.status} />
           </div>
@@ -529,10 +605,15 @@ function OrderCard({
         <div className="mt-3 border-t pt-3 text-sm text-gray-600 space-y-3">
           {/* Order Items */}
           <div>
-            <h4 className="font-semibold mb-2">Order Items ({order.items.length})</h4>
+            <h4 className="font-semibold mb-2">
+              Order Items ({order.items.length})
+            </h4>
             <div className="space-y-2">
               {order.items.slice(0, 3).map((item) => (
-                <div key={item.id} className="flex justify-between items-center">
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center"
+                >
                   <span className="flex-1">{item.product.title}</span>
                   <span className="text-gray-700">
                     {item.quantity} × ${item.price.toFixed(2)}
