@@ -114,7 +114,7 @@ function OrderTimeline({ currentStatus }: { currentStatus: string }) {
   ];
 
   const getStatusIndex = (status: string) => {
-    return statusSteps.findIndex(step => step.key === status);
+    return statusSteps.findIndex((step) => step.key === status);
   };
 
   const currentIndex = getStatusIndex(currentStatus);
@@ -139,19 +139,35 @@ function OrderTimeline({ currentStatus }: { currentStatus: string }) {
                 }`}
               >
                 {isCompleted ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 ) : (
                   <span className="text-xs">{index + 1}</span>
                 )}
               </div>
-              <div className={`font-medium ${isCompleted ? "text-green-700" : isCurrent ? "text-blue-700" : "text-gray-500"}`}>
+              <div
+                className={`font-medium ${
+                  isCompleted
+                    ? "text-green-700"
+                    : isCurrent
+                    ? "text-blue-700"
+                    : "text-gray-500"
+                }`}
+              >
                 {step.label}
               </div>
-              {isCurrent && (
-                <StatusBadge status={currentStatus} />
-              )}
+              {isCurrent && <StatusBadge status={currentStatus} />}
             </div>
           );
         })}
@@ -168,7 +184,7 @@ const getShippingAddress = (order: Order) => {
       city: "",
       state: "",
       country: "",
-      postalCode: ""
+      postalCode: "",
     };
   }
   return order.shippingAddress;
@@ -205,14 +221,14 @@ export default function OrderDetailsPage() {
       setLoading(true);
       setError(null);
       const res = await fetch(`/api/orders/${orderId}`);
-      
+
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error("Order not found");
         }
         throw new Error("Failed to fetch order details");
       }
-      
+
       // FIX: Your API returns the order directly, not nested in data
       const orderData = await res.json();
       setOrder(orderData);
@@ -234,8 +250,8 @@ export default function OrderDetailsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          status: newStatus
+        body: JSON.stringify({
+          status: newStatus,
           // Note: Your PUT endpoint doesn't currently handle notes
           // You might want to add that functionality
         }),
@@ -249,7 +265,7 @@ export default function OrderDetailsPage() {
       // FIX: Your API returns { message: string, order: Order }
       const responseData = await res.json();
       setOrder(responseData.order);
-      
+
       // Clear the note field after successful update
       setUpdateNote("");
     } catch (err: any) {
@@ -271,9 +287,9 @@ export default function OrderDetailsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           content: updateNote,
-          type: "INTERNAL" 
+          type: "INTERNAL",
         }),
       });
 
@@ -312,12 +328,22 @@ export default function OrderDetailsPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <svg className="h-8 w-8 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              <svg
+                className="h-8 w-8 text-red-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
             <div className="ml-4">
-              <h3 className="text-lg font-medium text-red-800">Error loading order</h3>
+              <h3 className="text-lg font-medium text-red-800">
+                Error loading order
+              </h3>
               <p className="text-red-700 mt-1">{error || "Order not found"}</p>
             </div>
           </div>
@@ -352,14 +378,27 @@ export default function OrderDetailsPage() {
               href="/admin/orders"
               className="text-gray-500 hover:text-gray-700 transition"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Order Details</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Order Details
+              </h1>
               <p className="text-gray-600 text-sm mt-1">
-                #{order.orderNumber} • {new Date(order.createdAt).toLocaleDateString()}
+                #{order.orderNumber} •{" "}
+                {new Date(order.createdAt).toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -369,8 +408,18 @@ export default function OrderDetailsPage() {
               onClick={() => router.refresh()}
               className="text-gray-500 hover:text-gray-700 transition"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
             </button>
           </div>
@@ -382,14 +431,19 @@ export default function OrderDetailsPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Order Items */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Order Items
+            </h2>
             <div className="space-y-4">
               {/* FIX: order.items should now be defined from your API */}
               {order.items && order.items.length > 0 ? (
                 order.items.map((item) => {
                   const imageUrl = getProductImage(item);
                   return (
-                    <div key={item.id} className="flex items-center space-x-4 py-3 border-b border-gray-100 last:border-0">
+                    <div
+                      key={item.id}
+                      className="flex items-center space-x-4 py-3 border-b border-gray-100 last:border-0"
+                    >
                       <div className="flex-shrink-0 w-16 h-16 bg-gray-100 rounded-lg overflow-hidden">
                         {imageUrl ? (
                           <Image
@@ -401,8 +455,18 @@ export default function OrderDetailsPage() {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <svg
+                              className="w-6 h-6"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
                             </svg>
                           </div>
                         )}
@@ -412,7 +476,9 @@ export default function OrderDetailsPage() {
                           {item.product.title}
                         </h3>
                         {item.product.category && (
-                          <p className="text-sm text-gray-500">{item.product.category.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {item.product.category.name}
+                          </p>
                         )}
                         <p className="text-sm text-gray-600 mt-1">
                           Quantity: {item.quantity} × ${item.price.toFixed(2)}
@@ -439,8 +505,18 @@ export default function OrderDetailsPage() {
                 })
               ) : (
                 <div className="text-center py-8 text-gray-500">
-                  <svg className="w-12 h-12 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m8-8V4a1 1 0 00-1-1h-2a1 1 0 00-1 1v1M9 7h6" />
+                  <svg
+                    className="w-12 h-12 mx-auto text-gray-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m8-8V4a1 1 0 00-1-1h-2a1 1 0 00-1 1v1M9 7h6"
+                    />
                   </svg>
                   <p className="mt-2">No items found in this order</p>
                 </div>
@@ -470,22 +546,29 @@ export default function OrderDetailsPage() {
 
           {/* Shipping Information */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Shipping Information</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Shipping Information
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Shipping Address</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  Shipping Address
+                </h3>
                 <div className="text-sm text-gray-600 space-y-1">
                   <p>{shippingAddress.street}</p>
                   {shippingAddress.city && shippingAddress.state && (
                     <p>
-                      {shippingAddress.city}, {shippingAddress.state} {shippingAddress.postalCode}
+                      {shippingAddress.city}, {shippingAddress.state}{" "}
+                      {shippingAddress.postalCode}
                     </p>
                   )}
                   {shippingAddress.country && <p>{shippingAddress.country}</p>}
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Contact Information</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  Contact Information
+                </h3>
                 <div className="text-sm text-gray-600 space-y-1">
                   {order.buyer ? (
                     <>
@@ -496,7 +579,9 @@ export default function OrderDetailsPage() {
                   ) : (
                     <>
                       <p className="text-gray-500 italic">Guest Customer</p>
-                      <p className="text-gray-500 italic">No account information</p>
+                      <p className="text-gray-500 italic">
+                        No account information
+                      </p>
                     </>
                   )}
                 </div>
@@ -507,14 +592,19 @@ export default function OrderDetailsPage() {
           {/* Order Notes */}
           {order.notes && order.notes.length > 0 && (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Notes</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Order Notes
+              </h2>
               <div className="space-y-4">
                 {order.notes.map((note) => (
-                  <div key={note.id} className="border-l-4 border-blue-500 pl-4 py-2">
+                  <div
+                    key={note.id}
+                    className="border-l-4 border-blue-500 pl-4 py-2"
+                  >
                     <p className="text-sm text-gray-700">{note.content}</p>
                     <div className="flex justify-between items-center mt-2">
                       <span className="text-xs text-gray-500">
-                        {note.author ? `By ${note.author.name}` : 'System'}
+                        {note.author ? `By ${note.author.name}` : "System"}
                       </span>
                       <span className="text-xs text-gray-500">
                         {new Date(note.createdAt).toLocaleString()}
@@ -568,7 +658,7 @@ export default function OrderDetailsPage() {
               </div>
             </div>
           </div> */}
-
+          {/*  */}
           {/* Order Timeline */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <OrderTimeline currentStatus={order.status} />
@@ -577,30 +667,40 @@ export default function OrderDetailsPage() {
           {/* Payment Information */}
           {order.transaction && (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Payment Information
+              </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Transaction ID:</span>
-                  <span className="font-mono text-gray-900">{order.transaction.id}</span>
+                  <span className="font-mono text-gray-900">
+                    {order.transaction.id}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Provider:</span>
-                  <span className="text-gray-900">{order.transaction.provider}</span>
+                  <span className="text-gray-900">
+                    {order.transaction.provider}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Status:</span>
-                  <StatusBadge status={order.transaction.status} />
+                  {/* <StatusBadge status={order.transaction.status} /> */}
+                  <StatusBadge status={order.status} />
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Amount:</span>
                   <span className="text-gray-900">
-                    {order.transaction.currency} {order.transaction.amount.toFixed(2)}
+                    {order.transaction.currency}{" "}
+                    {order.transaction.amount.toFixed(2)}
                   </span>
                 </div>
                 {order.transaction.providerRef && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Provider Reference:</span>
-                    <span className="font-mono text-gray-900">{order.transaction.providerRef}</span>
+                    <span className="font-mono text-gray-900">
+                      {order.transaction.providerRef}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between">
@@ -615,7 +715,9 @@ export default function OrderDetailsPage() {
 
           {/* Order Metadata */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Information</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Order Information
+            </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Order ID:</span>
@@ -623,7 +725,9 @@ export default function OrderDetailsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Order Number:</span>
-                <span className="font-mono text-gray-900">{order.orderNumber}</span>
+                <span className="font-mono text-gray-900">
+                  {order.orderNumber}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Created:</span>
