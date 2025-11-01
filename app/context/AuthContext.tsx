@@ -15,7 +15,7 @@ interface User {
   createdAt?: string;
   updatedAt?: string;
 }
-
+import toast from "react-hot-toast";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 throw new Error("Token verification failed");
               }
             } catch (error) {
-              console.warn("Token verification failed, logging out:", error);
+              toast.error("Token verification failed, logging out:");
               logout();
             }
           } else {
