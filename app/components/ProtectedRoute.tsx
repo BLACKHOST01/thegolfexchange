@@ -28,7 +28,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     if (!loading) {
       if (!user) {
-        router.push("/login");
+        router.push("/auth/login");
         return;
       }
       if (requiredRole && user.role?.toUpperCase() !== requiredRole.toUpperCase()) {

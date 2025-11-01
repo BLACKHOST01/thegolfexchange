@@ -685,8 +685,8 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Status:</span>
-                  {/* <StatusBadge status={order.transaction.status} /> */}
-                  <StatusBadge status={order.status} />
+                  <StatusBadge status={order.transaction.status} />
+                  {/* <StatusBadge status={order.status} /> */}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Amount:</span>
