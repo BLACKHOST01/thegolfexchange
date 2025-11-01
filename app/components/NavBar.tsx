@@ -13,17 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import golfball from "@/public/placeholder.png";
 import { ShoppingCart, Menu, X } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
-
-interface CartItem {
-  id: string;
-  quantity: number;
-  product: {
-    id: string;
-    title: string;
-    price: number;
-    images?: string[];
-  };
-}
+import { useCart } from "@/app/context/CartContext"; // Import your cart context
 
 interface MenuItem {
   path: string;
@@ -36,13 +26,12 @@ const menuItems: MenuItem[] = [
   { path: "/tournaments", label: "Tournaments" },
   { path: "/contact", label: "Contact" },
   { path: "/blog", label: "Blog" },
-  {path: "/user/dashboard/profile", label: "Profile" },
+  { path: "/user/dashboard/profile", label: "Profile" },
 ];
 
 const NavBar: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isLogoLoaded, setIsLogoLoaded] = useState<boolean>(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuItemsRef = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -50,32 +39,10 @@ const NavBar: React.FC = () => {
   const router = useRouter();
 
   const { user, logout } = useAuth();
+  const { itemCount } = useCart(); // Use cart context
 
-  // Memoized cart quantity calculation
-  const totalQty = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-    [cartItems]
-  );
-
-  // Load cart data
-  useEffect(() => {
-    const loadCart = async (): Promise<void> => {
-      try {
-        const res = await fetch("/api/cart", {
-          headers: { "x-user-id": user?.id || "demo-user-id" }, // Use actual user ID when available
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setCartItems(data?.items ?? []);
-        }
-      } catch (err) {
-        console.error("Failed to load cart", err);
-      }
-    };
-
-    loadCart();
-  }, [user?.id]); // Re-fetch when user changes
+  // Remove all the cart state and useEffect related to cart fetching
+  // Use itemCount directly from cart context
 
   // Event handlers
   const handleCartKeyDown = useCallback(
@@ -129,11 +96,9 @@ const NavBar: React.FC = () => {
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.classList.add("overflow-hidden");
-      // Focus first menu item when menu opens
       setTimeout(() => menuItemsRef.current[0]?.focus(), 100);
     } else {
       document.body.classList.remove("overflow-hidden");
-      // Return focus to menu button when menu closes
       buttonRef.current?.focus();
     }
   }, [isMobileMenuOpen]);
@@ -194,22 +159,21 @@ const NavBar: React.FC = () => {
             className="flex items-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
             aria-label="Home page"
           >
-            {/* // In your NavBar component - update the Image component */}
             <Image
               src={golfball}
               alt="Logo"
-              width={40} // Reduced from 102 for better performance
-              height={40} // Make sure height matches width for square images
+              width={40}
+              height={40}
               className={`rounded-full transition-opacity ${
                 isLogoLoaded ? "opacity-100" : "opacity-0"
               }`}
-              style={{ width: "auto", height: "auto" }} // Add this to maintain aspect ratio
+              style={{ width: "auto", height: "auto" }}
               onLoad={() => setIsLogoLoaded(true)}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
                 setIsLogoLoaded(true);
               }}
-              priority // Add this for above-the-fold images
+              priority
             />
             {!isLogoLoaded && (
               <div className="w-10 h-10 bg-gray-200 animate-pulse rounded-full" />
@@ -272,12 +236,12 @@ const NavBar: React.FC = () => {
               onKeyDown={handleCartKeyDown}
               tabIndex={0}
               role="button"
-              aria-label={`Shopping cart with ${totalQty} items`}
+              aria-label={`Shopping cart with ${itemCount} items`} // Use itemCount from context
             >
               <ShoppingCart className="w-6 h-6 text-gray-700" />
-              {totalQty > 0 && (
+              {itemCount > 0 && ( // Use itemCount from context
                 <span className="absolute -top-2 -right-2 bg-yellow-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                  {totalQty > 99 ? "99+" : totalQty}
+                  {itemCount > 99 ? "99+" : itemCount} {/* Use itemCount */}
                 </span>
               )}
             </div>
@@ -301,7 +265,7 @@ const NavBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu - rest of your component remains the same */}
       <div
         ref={menuRef}
         id="mobile-menu"
