@@ -175,7 +175,8 @@ const GuestOrdersView = ({
                       order.status
                     )}`}
                   >
-                    {order.status || "PENDING"}
+                    {/* {order.status || "PENDING"} */}
+                    {order.status}
                   </span>
                 </div>
               </div>
