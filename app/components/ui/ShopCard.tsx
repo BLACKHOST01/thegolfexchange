@@ -4,6 +4,7 @@ import React from "react";
 import { useCart } from "@/app/context/CartContext";
 import Link from "next/link";
 import Image from "next/image";
+import toast from "react-hot-toast";
 
 interface ShopCardProps {
   id: string;
@@ -57,7 +58,7 @@ export function ShopCard({
 
     // Optional: Show a more sophisticated notification instead of alert
     // You could use a toast notification library here
-    console.log(`Added ${title} to cart!`);
+    toast.success(`Added ${title} to cart!`);
   };
 
   // Get the primary image to display
