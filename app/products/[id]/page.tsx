@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import { useCart } from "@/app/context/CartContext";
 import { useAuth } from "@/app/context/AuthContext";
 import { ChevronLeft, ChevronRight, X, Star, Shield, Truck } from "lucide-react";
+import toast from "react-hot-toast";
+
 
 type UploadedFile = {
   id: string;
@@ -143,10 +145,10 @@ export default function ProductPage() {
 
       addToCart(cartProduct, qty);
       
-      alert(`Added ${qty} ${qty === 1 ? 'item' : 'items'} of "${product.title}" to cart`);
+      toast.success(`Added ${qty} ${qty === 1 ? 'item' : 'items'} of "${product.title}" to cart`);
     } catch (err) {
       console.error("Error adding to cart:", err);
-      alert("Error adding to cart");
+      toast.error("Error adding to cart");
     } finally {
       setAddingToCart(false);
     }
@@ -211,7 +213,7 @@ export default function ProductPage() {
   const images = product.images || [];
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="max-w-6xl py-24 mx-auto p-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
         <span>Home</span>

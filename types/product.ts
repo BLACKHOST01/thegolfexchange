@@ -1,3 +1,5 @@
+// types/product.ts
+
 export interface ProductFormData {
   id?: string;
   title: string;
@@ -9,7 +11,7 @@ export interface ProductFormData {
   condition: "NEW" | "USED";
   isFeatured: boolean;
   isUsed: boolean;
-  images?: string[];
+  location?: string;
 }
 
 export interface ComboboxOption {
@@ -25,12 +27,24 @@ export interface ComboboxProps {
   disabled?: boolean;
 }
 
+// Improved ProductFormProps interface
 export interface ProductFormProps {
-  initialData?: Partial<ProductFormData>;
+  initialData?: Partial<ProductFormData> & { 
+    images?: string[] | File[]; // Support both URLs and File objects
+  };
   onSubmit?: (data: ProductFormData & { images: File[] }) => void;
   buttonLabel?: string;
   isEditing?: boolean;
-  externalSubmit?: boolean; // Add this
-  loading?: boolean; // Add this
+  externalSubmit?: boolean;
+  onCancel?: () => void; // Add cancel handler
 }
 
+// Additional type for API responses
+export interface ProductApiResponse extends ProductFormData {
+  id: string;
+  createdAt?: string;
+  updatedAt?: string;
+  // Support different image field names from API
+  images?: string[];
+  image?: string[]; // Some APIs might use singular 'image'
+}

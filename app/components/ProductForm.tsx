@@ -136,6 +136,7 @@ export default function ProductForm({
   const [loading, setLoading] = useState(false);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
 
+  // FIXED: Use the correct ProductFormData type with all required fields
   const [form, setForm] = useState<ProductFormData>({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -146,11 +147,14 @@ export default function ProductForm({
     condition: initialData?.condition || "NEW",
     isFeatured: initialData?.isFeatured || false,
     isUsed: initialData?.isUsed || false,
+    location: initialData?.location || "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [images, setImages] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>(initialData?.images || []);
+  const [previews, setPreviews] = useState<string[]>(
+    (initialData as any)?.images || []
+  );
   const [categories, setCategories] = useState<ComboboxOption[]>([]);
   const [subcategories, setSubcategories] = useState<ComboboxOption[]>([]);
   const [filteredSubcategories, setFilteredSubcategories] = useState<
@@ -164,15 +168,26 @@ export default function ProductForm({
     async function fetchSuggestions() {
       setCategoriesLoading(true);
       try {
-        const [catRes, subRes] = await Promise.all([
-          fetch("/api/categories").then((r) => r.json()),
-          fetch("/api/subcategories").then((r) => r.json()),
+        const [catRes] = await Promise.all([
+          fetch("/api/categories").then((r) => {
+            if (!r.ok) throw new Error("Failed to fetch categories");
+            return r.json();
+          }),
         ]);
 
-        setCategories(catRes.map((c: any) => ({ label: c.name, value: c.id })));
-        setSubcategories(
-          subRes.map((s: any) => ({ label: s.name, value: s.id }))
-        );
+        // FIXED: Handle the response structure from your categories API
+        if (catRes.success) {
+          setCategories(
+            catRes.data.map((c: any) => ({ 
+              label: `${c.name} (${c._count?.products || 0})`, 
+              value: c.id 
+            }))
+          );
+        } else {
+          console.error("Failed to load categories:", catRes.error);
+        }
+
+        setSubcategories([]);
       } catch (err) {
         console.error("Error fetching categories/subcategories:", err);
       } finally {
@@ -182,17 +197,36 @@ export default function ProductForm({
     fetchSuggestions();
   }, []);
 
-  // Filter subcategories when category changes
+  // FIXED: Load subcategories when category changes
   useEffect(() => {
-    if (form.categoryId) {
-      const filtered = subcategories.filter(
-        (sub) => sub.value.startsWith(form.categoryId) || true // Remove this and implement actual filtering logic
-      );
-      setFilteredSubcategories(filtered);
-    } else {
-      setFilteredSubcategories([]);
-    }
-  }, [form.categoryId, subcategories]);
+    const loadSubcategories = async () => {
+      if (!form.categoryId) {
+        setFilteredSubcategories([]);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/categories/${form.categoryId}/subcategories`);
+        if (!res.ok) throw new Error("Failed to fetch subcategories");
+        
+        const data = await res.json();
+        if (data.success) {
+          const subcatOptions = data.data.subcategories.map((s: any) => ({
+            label: `${s.name} (${s._count?.products || 0})`,
+            value: s.id
+          }));
+          setFilteredSubcategories(subcatOptions);
+        } else {
+          setFilteredSubcategories([]);
+        }
+      } catch (error) {
+        console.error("Error loading subcategories:", error);
+        setFilteredSubcategories([]);
+      }
+    };
+
+    loadSubcategories();
+  }, [form.categoryId]);
 
   // Cleanup preview URLs
   useEffect(() => {
@@ -302,6 +336,7 @@ export default function ProductForm({
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // FIXED: Handle form submission - ensure externalSubmit works correctly
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -313,16 +348,41 @@ export default function ProductForm({
       return;
     }
 
-    // If externalSubmit is true, pass data to parent component
+    // Create proper submission data
+    const submissionData = {
+      title: form.title,
+      description: form.description,
+      price: form.price,
+      stock: form.stock,
+      condition: form.condition,
+      categoryId: form.categoryId,
+      subcategoryId: form.subcategoryId,
+      location: form.location,
+      isFeatured: form.isFeatured,
+      isUsed: form.isUsed,
+      images: images,
+    };
+
+    console.log("🟡 ProductForm submission data:", submissionData);
+    console.log("🟡 externalSubmit value:", externalSubmit);
+    console.log("🟡 onSubmit function available:", !!onSubmit);
+
+    // FIXED: Always pass data to parent when externalSubmit is true, regardless of loading state
     if (externalSubmit && onSubmit) {
-      // Create proper submission data that matches the expected type
-      const submissionData = {
-        ...form,
-        images: images, // This will be File[] for new images
-      };
-      onSubmit(submissionData as Parameters<typeof onSubmit>[0]);
+      console.log("🟡 Using EXTERNAL submission to parent component");
+      setLoading(true);
+      try {
+        await onSubmit(submissionData);
+      } catch (error) {
+        console.error("Error in form submission:", error);
+        // Don't set loading to false here - let parent handle loading state
+        return; // Return early on error
+      }
+      // Don't set loading to false here - let parent handle loading state
       return;
     }
+
+    console.log("🟡 Using INTERNAL submission");
 
     // Otherwise, handle submission internally
     const token = user?.token || localStorage.getItem("token");
@@ -333,14 +393,8 @@ export default function ProductForm({
 
     setLoading(true);
     try {
-      // Implement your internal submission logic here
-      console.log("Form submission:", { ...form, images });
-      // Example:
-      // const formData = new FormData();
-      // Object.keys(form).forEach(key => {
-      //   formData.append(key, form[key as keyof ProductFormData]);
-      // });
-      // images.forEach(image => formData.append('images', image));
+      console.log("Internal form submission:", submissionData);
+      // Your internal submission logic here
     } catch (err: any) {
       console.error(
         `❌ Error ${isEditing ? "updating" : "creating"} product:`,
@@ -441,7 +495,11 @@ export default function ProductForm({
                 options={categories}
                 value={form.categoryId}
                 onChange={(val) =>
-                  setForm((prev) => ({ ...prev, categoryId: val }))
+                  setForm((prev) => ({ 
+                    ...prev, 
+                    categoryId: val,
+                    subcategoryId: "" // Reset subcategory when category changes
+                  }))
                 }
                 placeholder={
                   categoriesLoading
@@ -464,10 +522,12 @@ export default function ProductForm({
                 }
                 placeholder={
                   form.categoryId
-                    ? "Select subcategory"
+                    ? filteredSubcategories.length > 0 
+                      ? "Select subcategory" 
+                      : "No subcategories available"
                     : "Select category first"
                 }
-                disabled={!form.categoryId || categoriesLoading}
+                disabled={!form.categoryId || categoriesLoading || filteredSubcategories.length === 0}
               />
             </div>
           </div>
@@ -475,7 +535,7 @@ export default function ProductForm({
           {/* Stock & Condition */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="stock">Stock Quantity</Label>
+              <Label htmlFor="stock">Stock Quantity *</Label>
               <Input
                 id="stock"
                 name="stock"
@@ -483,6 +543,7 @@ export default function ProductForm({
                 min="0"
                 value={form.stock}
                 onChange={handleChange}
+                required
                 className={errors.stock ? "border-red-500" : ""}
                 placeholder="0"
               />
@@ -498,11 +559,27 @@ export default function ProductForm({
                 value={form.condition}
                 onChange={handleSelectChange}
                 className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
               >
                 <option value="NEW">New</option>
                 <option value="USED">Used</option>
               </select>
             </div>
+          </div>
+
+          {/* Location */}
+          <div>
+            <Label htmlFor="location">Location</Label>
+            <Input
+              id="location"
+              name="location"
+              value={form.location}
+              onChange={handleChange}
+              placeholder="Enter product location (e.g., Lagos, Nigeria)"
+            />
+            <p className="text-gray-500 text-sm mt-1">
+              Optional: Where the product is located
+            </p>
           </div>
 
           {/* Images */}

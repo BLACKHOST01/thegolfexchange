@@ -1,7 +1,8 @@
+// app/admin/users/[userId]/edit/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import UserAvatar from "@/app/components/UserAvatar";
 
@@ -112,11 +113,13 @@ function ErrorState({
   );
 }
 
-export default function EditUserPage() {
-  const params = useParams();
+export default function EditUserPage({
+  params,
+}: {
+  params: Promise<{ userId: string }>;
+}) {
   const router = useRouter();
-  const userId = params.userId as string;
-
+  const [resolvedParams, setResolvedParams] = useState<{ userId: string } | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<UserFormData | null>(null);
   const [originalData, setOriginalData] = useState<UserFormData | null>(null);
@@ -124,22 +127,38 @@ export default function EditUserPage() {
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
-    {}
-  );
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Fetch user data
+  // Resolve params on mount
+  useEffect(() => {
+    const resolveParams = async () => {
+      try {
+        const resolved = await params;
+        setResolvedParams(resolved);
+      } catch (err) {
+        console.error("Error resolving params:", err);
+        setError("Failed to load page parameters");
+        setLoading(false);
+      }
+    };
+
+    resolveParams();
+  }, [params]);
+
+  // Fetch user data when params are resolved
   const fetchUser = useCallback(async () => {
+    if (!resolvedParams?.userId) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      console.log("Fetching user with ID:", userId);
+      console.log("Fetching user with ID:", resolvedParams.userId);
 
-      const res = await fetch(`/api/users/${userId}`);
+      const res = await fetch(`/api/users/${resolvedParams.userId}`);
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -187,26 +206,64 @@ export default function EditUserPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [resolvedParams]);
 
   useEffect(() => {
-    if (userId) {
+    if (resolvedParams?.userId) {
       fetchUser();
     }
-  }, [userId, fetchUser]);
+  }, [resolvedParams, fetchUser]);
 
-  // Handle success message timeout
+  // Cleanup avatar preview URL
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (successMessage) {
-      timer = setTimeout(() => {
-        setSuccessMessage(null);
-      }, 5000);
-    }
     return () => {
-      if (timer) clearTimeout(timer);
+      if (avatarPreview && avatarPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview);
+      }
     };
-  }, [successMessage]);
+  }, [avatarPreview]);
+
+  // Validate form
+  const validateForm = (): boolean => {
+    if (!formData) return false;
+
+    const errors: ValidationErrors = {};
+
+    // Name validation
+    if (!formData.name.trim()) {
+      errors.name = "Name is required";
+    } else if (formData.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters";
+    } else if (formData.name.trim().length > 50) {
+      errors.name = "Name must be less than 50 characters";
+    }
+
+    // Email validation
+    if (!formData.email.trim()) {
+      errors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    // Improved phone validation - more permissive
+    if (formData.phone && formData.phone.trim()) {
+      const phoneRegex = /^(\+?\d{1,4}[\s-]?)?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,9}$/;
+      const cleanPhone = formData.phone.replace(/\s/g, '');
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.phone = "Please enter a valid phone number";
+      } else if (cleanPhone.length < 10) {
+        errors.phone = "Phone number must be at least 10 digits";
+      }
+    }
+
+    // Role validation
+    if (!Object.values(Role).includes(formData.role)) {
+      errors.role = "Please select a valid role";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   // Check if form has changes
   const hasChanges = useCallback(() => {
@@ -257,50 +314,23 @@ export default function EditUserPage() {
     [validationErrors]
   );
 
-  // Validate form
-  const validateForm = (): boolean => {
-    if (!formData) return false;
-
-    const errors: ValidationErrors = {};
-
-    // Name validation
-    if (!formData.name.trim()) {
-      errors.name = "Name is required";
-    } else if (formData.name.trim().length < 2) {
-      errors.name = "Name must be at least 2 characters";
-    } else if (formData.name.trim().length > 50) {
-      errors.name = "Name must be less than 50 characters";
+  // Handle success message timeout
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (successMessage) {
+      timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
     }
-
-    // Email validation
-    if (!formData.email.trim()) {
-      errors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = "Please enter a valid email address";
-    }
-
-    // Improved phone validation - more permissive
-    if (formData.phone && formData.phone.trim()) {
-      const phoneRegex = /^(\+?\d{1,4}[\s-]?)?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,9}$/;
-      const cleanPhone = formData.phone.replace(/\s/g, '');
-      if (!phoneRegex.test(cleanPhone)) {
-        errors.phone = "Please enter a valid phone number";
-      } else if (cleanPhone.length < 10) {
-        errors.phone = "Phone number must be at least 10 digits";
-      }
-    }
-
-    // Role validation
-    if (!Object.values(Role).includes(formData.role)) {
-      errors.role = "Please select a valid role";
-    }
-
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [successMessage]);
 
   // Handle avatar change with improved validation
   const handleAvatarChange = async (file: File) => {
+    if (!resolvedParams?.userId) return;
+
     // File validation
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -323,9 +353,9 @@ export default function EditUserPage() {
       const uploadFormData = new FormData();
       uploadFormData.append("avatar", file);
 
-      console.log("Uploading avatar for user:", userId);
+      console.log("Uploading avatar for user:", resolvedParams.userId);
 
-      const uploadRes = await fetch(`/api/users/${userId}/avatar`, {
+      const uploadRes = await fetch(`/api/users/${resolvedParams.userId}/avatar`, {
         method: "POST",
         body: uploadFormData,
       });
@@ -372,7 +402,7 @@ export default function EditUserPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData || !validateForm() || saving) {
+    if (!formData || !validateForm() || saving || !resolvedParams?.userId) {
       return;
     }
 
@@ -392,7 +422,7 @@ export default function EditUserPage() {
 
       console.log("Updating user with data:", updateData);
 
-      const res = await fetch(`/api/users/${userId}`, {
+      const res = await fetch(`/api/users/${resolvedParams.userId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -415,15 +445,10 @@ export default function EditUserPage() {
       setAvatarFile(null);
       setSuccessMessage("User updated successfully!");
 
-      // Option 1: Refresh the page to show updated data
+      // Refresh the page to show updated data
       setTimeout(() => {
         router.refresh();
       }, 1000);
-
-      // Option 2: Redirect to users list with success message
-      // setTimeout(() => {
-      //   router.push('/admin/users?updated=true');
-      // }, 1500);
 
     } catch (err: any) {
       console.error("Error updating user:", err);
@@ -447,6 +472,8 @@ export default function EditUserPage() {
 
   // Handle delete user
   const handleDelete = async () => {
+    if (!resolvedParams?.userId) return;
+
     if (
       !confirm(
         "Are you sure you want to delete this user? This action cannot be undone."
@@ -456,7 +483,7 @@ export default function EditUserPage() {
     }
 
     try {
-      const res = await fetch(`/api/users/${userId}`, {
+      const res = await fetch(`/api/users/${resolvedParams.userId}`, {
         method: "DELETE",
       });
 

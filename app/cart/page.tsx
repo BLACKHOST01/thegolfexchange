@@ -5,6 +5,8 @@ import { CartItem } from '@/app/context/CartContext';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import toast, {Toaster} from "react-hot-toast";
+
 
 export default function CartPage() {
   const { cartItems, removeFromCart, updateQuantity, total, itemCount, clearCart } = useCart();
@@ -25,7 +27,7 @@ export default function CartPage() {
     }
     
     if (newQuantity > item.stock) {
-      alert(`Only ${item.stock} items available in stock!`);
+      toast(`Only ${item.stock} items available in stock!`);
       return;
     }
     
@@ -121,13 +123,13 @@ export default function CartPage() {
     // Validate cart items before proceeding to order review
     const outOfStockItems = cartItems.filter(item => item.stock === 0);
     if (outOfStockItems.length > 0) {
-      alert('Some items in your cart are out of stock. Please remove them before checking out.');
+      toast.error('Some items in your cart are out of stock. Please remove them before checking out.');
       return;
     }
 
     const lowStockItems = cartItems.filter(item => item.quantity > item.stock);
     if (lowStockItems.length > 0) {
-      alert('Some items in your cart exceed available stock. Please adjust quantities before checking out.');
+      toast.error('Some items in your cart exceed available stock. Please adjust quantities before checking out.');
       return;
     }
 
