@@ -4,6 +4,8 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import ClientLayout from "./ClientLayout";
 import { Toaster } from "react-hot-toast";
+import { ReactNode } from "react";
+import CookieConsent from "@/app/components/CookieConsent";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -29,6 +31,7 @@ export default function RootLayout({
         <Analytics />
         <ClientLayout>{children}</ClientLayout>
         <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+        <CookieConsent />
       </body>
     </html>
   );

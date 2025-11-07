@@ -288,3 +288,38 @@ model Transaction {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+// prisma/schema.prisma
+// (keep your existing generator + datasource blocks above)
+// Add this model at the end of the file:
+
+model Event {
+  id              BigInt    @id @default(autoincrement())
+  visitorId       String?   @db.VarChar(64)
+  userId          String?   @db.Uuid
+  sessionId       String?   @db.VarChar(64)
+  eventType       String    @db.VarChar(64)
+  eventProperties Json?
+  url             String?
+  referrer        String?
+  userAgent       String?
+  ipAddr          String?
+  createdAt       DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([visitorId])
+  @@index([userId])
+  @@index([createdAt])
+}

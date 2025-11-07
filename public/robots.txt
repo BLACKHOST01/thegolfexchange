@@ -1,0 +1,5 @@
+# public/robots.txt
+User-agent: *
+Allow: /
+
+Sitemap: ${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/sitemap.xml
